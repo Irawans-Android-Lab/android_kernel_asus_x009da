@@ -793,6 +793,18 @@ config SENSORS_MMC3416X
 	  To compile this driver as a module, choose M here: the
 	  module will be called mmc3416x.
 
+#<--[5830][Sensors][JasonHsing] Porting E-compass MMC3530 20160128 BEGIN --
+config SENSORS_MMC3524X
+	tristate "MMC3524xPJ 3-axis magnetic sensor driver"
+	depends on I2C
+	help
+	  Say Y here if you want to enable the MMC3524xPJ magnetic sensor
+	  driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called mmc3524x.
+#-->[5830][Sensors][JasonHsing] Porting E-compass MMC3530 20160128 END --
+
 config SENSORS_MMC3416X_ALLOW_OVERFLOW
 	tristate "MMC3416X sensor overflow check"
 	depends on SENSORS_MMC3416X
@@ -830,6 +842,32 @@ config SENSORS_AKM8963
 	  To compile this driver as a module, choose M here: the
 	  module will be called akm8963.
 
+#<--[5830][Sensors][JasonHsing] Porting P/L-sensor epl259x 20160114 BEGIN --
+config SENSORS_EPL259X
+	tristate "EPL259X device driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here you want to enable for the Elan EPL259X
+	  light and proximity sensors driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called EPL259X.
+#-->[5830][Sensors][JasonHsing] Porting P/L-sensor epl259x 20160114 END --
+
+#<--[5830][Sensors][JasonHsing] Porting Hall sensor apx9136 20160114 BEGIN --
+config SENSORS_APX9136
+	tristate "APX9136 device driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here you want to enable for the Elan APX9136
+	  light and proximity sensors driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called APX9136.
+#-->[5830][Sensors][JasonHsing] Porting Hall sensor apx9136 20160114 END --
+
 config SENSORS_STK3X1X
 	tristate "STK3X1X device driver"
 	depends on I2C
@@ -851,6 +889,18 @@ config SENSORS_CAPELLA_CM36283
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called CM36283.
+
+#<--[5833][Sensors][JasonHsing] Porting G-sensor mxc400x 20160317 BEGIN --
+config SENSORS_MXC400X
+	tristate "mxc4005 accelerate sensor dirver"
+	depends on I2C
+	help
+	Say Y here if you want to enable the MXC4005 accelerate sensor
+	driver.
+
+	To compile this driver as a module, choose M here: the
+	module will be called mxc4005.
+#-->[5833][Sensors][JasonHsing] Porting G-sensor mxc400x 20160317 END --
 
 config INPUT_KIONIX_ACCEL
 	tristate "KIONIX_ACCEL"
