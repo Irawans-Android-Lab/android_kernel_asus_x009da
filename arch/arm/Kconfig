@@ -245,6 +245,171 @@ config NEED_MACH_GPIO_H
 	  definitions for this platform. The need for mach/gpio.h should
 	  be avoided when possible.
 
+#[5830][SI] Add project define 20160105 start
+choice
+	prompt "ARIMA Project Selection"
+	depends on ARCH_MSM8916
+	depends on !MSM_STACKED_MEMORY
+	default SKU_NOT_ARIMA
+
+	config SKU_NOT_ARIMA
+	bool "Arima SKU Not Arima SKU"
+
+	config SKU_5830
+	bool "Arima SKU 5830"
+
+	config SKU_5833
+	bool "Arima SKU 5833"
+
+	config SKU_ZE500KG
+	bool "Arima SKU ZE500KG"
+
+	config SKU_NONE
+	bool "No Arima Project"
+
+endchoice
+
+
+
+choice
+	prompt "ARIMA 5830 HW Version"
+	depends on SKU_5830
+	default BSP_HW_NOT_ARIMA
+
+	config BSP_HW_B_5830_SR
+		bool "SR"
+
+	config BSP_HW_B_5830_ER1
+		bool "ER1"
+
+	config BSP_HW_B_5830_ER2
+		bool "ER2"
+
+	config BSP_HW_B_5830_PR
+		bool "PR"
+
+endchoice
+
+choice
+	prompt "ARIMA 5833 HW Version"
+	depends on SKU_5833
+	default BSP_HW_NOT_ARIMA
+
+	config BSP_HW_B_5833_ER1
+		bool "ER1"
+
+	config BSP_HW_B_5833_ER1_2
+		bool "ER1_2"
+
+	config BSP_HW_B_5833_ER2
+		bool "ER2"
+
+	config BSP_HW_B_5833_PR
+		bool "PR"
+
+endchoice
+
+choice
+	prompt "ASUS ZE500KG HW Version"
+	depends on SKU_ZE500KG
+	default BSP_HW_NOT_ARIMA
+
+	config BSP_HW_B_ZE500KG_SR
+		bool "SR"
+
+endchoice
+
+
+
+config BSP_HW_SKU_5830
+	int
+	depends on SKU_5830
+	default 1
+
+config BSP_HW_SKU_5833
+	int
+	depends on SKU_5833
+	default 1
+
+config BSP_HW_SKU_ZE500KG
+	int
+	depends on SKU_ZE500KG
+	default 1
+
+
+
+config BSP_HW_SKU_ALL
+	int
+	default 1 if SKU_5830 || SKU_5833 || SKU_ZE500KG
+	default 0 if SKU_NOT_ARIMA
+
+config BSP_HW_V_NOSKU_NOHWV
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 99999
+
+config BSP_HW_V_5830_SR
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 11000
+
+config BSP_HW_V_5830_ER1
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 12000
+
+config BSP_HW_V_5830_ER2
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 13000
+
+config BSP_HW_V_5830_PR
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 14000
+
+config BSP_HW_V_ZE500KG_SR
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 21000
+
+config BSP_HW_V_5833_ER1
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 31000
+
+config BSP_HW_V_5833_ER1_2
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 32000
+
+config BSP_HW_V_5833_ER2
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 33000
+
+config BSP_HW_V_5833_PR
+	int
+	depends on SKU_5830 || SKU_5833 || SKU_ZE500KG || SKU_NOT_ARIMA
+	default 34000
+
+
+
+config BSP_HW_V_CURRENT
+	int
+	default 99999 if SKU_NOT_ARIMA
+	default 11000 if BSP_HW_B_5830_SR
+	default 12000 if BSP_HW_B_5830_ER1
+	default 13000 if BSP_HW_B_5830_ER2
+	default 14000 if BSP_HW_B_5830_PR
+	default 21000 if BSP_HW_B_ZE500KG_SR
+	default 31000 if BSP_HW_B_5833_ER1
+	default 32000 if BSP_HW_B_5833_ER1_2
+	default 33000 if BSP_HW_B_5833_ER2
+	default 34000 if BSP_HW_B_5833_PR
+
+#[5830][SI] 20160105 end
+
 config NEED_MACH_IO_H
 	bool
 	help
