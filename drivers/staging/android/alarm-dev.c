@@ -261,6 +261,13 @@ static long alarm_do_ioctl(struct file *file, unsigned int cmd,
 	return rv;
 }
 
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+int e_rtc_ready;
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
+
 static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 
@@ -274,6 +281,16 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case ANDROID_ALARM_CLEAR(0):
 		if (copy_from_user(&ts, (void __user *)arg, sizeof(ts)))
 			return -EFAULT;
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+		if (e_rtc_ready == 0) {
+			e_rtc_ready = 1;
+			printk("%s: ANDROID_ALARM_BASE_CMD(cmd)=0x%08x\n",
+				__func__, ANDROID_ALARM_BASE_CMD(cmd));
+		}
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 		break;
 	}
 
@@ -304,6 +321,16 @@ static long alarm_compat_ioctl(struct file *file, unsigned int cmd,
 	case ANDROID_ALARM_SET_RTC_COMPAT:
 		if (compat_get_timespec(&ts, (void __user *)arg))
 			return -EFAULT;
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+		if (e_rtc_ready == 0) {
+			e_rtc_ready = 1;
+			printk("%s: ANDROID_ALARM_BASE_CMD(cmd)=0x%08x\n",
+				__func__, ANDROID_ALARM_BASE_CMD(cmd));
+		}
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 		/* fall through */
 	case ANDROID_ALARM_GET_TIME_COMPAT(0):
 		cmd = ANDROID_ALARM_COMPAT_TO_NORM(cmd);

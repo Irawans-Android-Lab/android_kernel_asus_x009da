@@ -275,7 +275,19 @@ struct pcmcia_device_id {
 /* Input */
 #define INPUT_DEVICE_ID_EV_MAX		0x1f
 #define INPUT_DEVICE_ID_KEY_MIN_INTERESTING	0x71
+/*[Arima_5833][bozhi_lin] re-enable touch gesture key code 20160512 begin*/
+/*[Arima_5833][bozhi_lin] fix can not enter recovery mode 20160511 begin*/
+/*[Arima_5830][bozhi_lin] touch add key code for gesture mode 20160310 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+#define INPUT_DEVICE_ID_KEY_MAX		0x3ff //0x2ff
+#elif (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+#define INPUT_DEVICE_ID_KEY_MAX		0x33f
+#else
 #define INPUT_DEVICE_ID_KEY_MAX		0x2ff
+#endif
+/*[Arima_5830][bozhi_lin] 20160310 end*/
+/*[Arima_5833][bozhi_lin] 20160511 end*/
+/*[Arima_5833][bozhi_lin] 20160512 end*/
 #define INPUT_DEVICE_ID_REL_MAX		0x0f
 #define INPUT_DEVICE_ID_ABS_MAX		0x3f
 #define INPUT_DEVICE_ID_MSC_MAX		0x07

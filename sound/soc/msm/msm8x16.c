@@ -127,7 +127,13 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.key_code[5] = 0,
 	.key_code[6] = 0,
 	.key_code[7] = 0,
+/* --- [5830][Audio][LewisChen]  Support active Speaker . 20160415 Begin ---*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || (CONFIG_BSP_HW_SKU_5833)
+	.linein_th = 26000,
+#else
 	.linein_th = 5000,
+#endif
+/*--- [5830][Audio][LewisChen] 20160415 End  ---*/
 };
 
 static struct wcd_mbhc_config wcd_mbhc_cfg = {
@@ -1909,6 +1915,12 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 		return NULL;
 	}
 
+/* --- [5830][Audio][LewisChen] Modify MBHC number and threshold . 20160322 Begin ---*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || (CONFIG_BSP_HW_SKU_5833)
+#define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8x16_wcd_cal)->X) = (Y))
+	S(v_hs_max, 1600);
+#undef S
+#else
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8x16_wcd_cal)->X) = (Y))
 #ifdef CONFIG_MACH_CP8675
 	S(v_hs_max, 2550);
@@ -1916,6 +1928,8 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	S(v_hs_max, 1500);
 #endif
 #undef S
+#endif
+/*--- [5830][Audio][LewisChen] 20160322 End  ---*/
 #define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(msm8x16_wcd_cal)->X) = (Y))
 	S(num_btn, WCD_MBHC_DEF_BUTTONS);
 #undef S
@@ -1937,7 +1951,17 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	 * 210-290 == Button 2
 	 * 360-680 == Button 3
 	 */
-#ifdef CONFIG_MACH_JALEBI
+/* --- [5830][Audio][LewisChen] Modify MBHC number and threshold . 20160505 Begin ---*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || (CONFIG_BSP_HW_SKU_5833)
+	btn_low[0] = 75;
+	btn_high[0] = 75;
+	btn_low[1] = 150;
+	btn_high[1] = 150;
+	btn_low[2] = 237;
+	btn_high[2] = 325;
+	btn_low[3] = 450;
+	btn_high[3] = 787;
+#elif defined CONFIG_MACH_JALEBI
 	btn_low[0] = 0;
 	btn_high[0] = 150;
 	btn_low[1] = 150;
@@ -1971,6 +1995,7 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	btn_low[4] = 500;
 	btn_high[4] = 500;
 #endif
+/*--- [5830][Audio][LewisChen] 20160505 End  ---*/
 
 	return msm8x16_wcd_cal;
 }

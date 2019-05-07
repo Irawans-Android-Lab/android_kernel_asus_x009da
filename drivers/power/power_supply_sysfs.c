@@ -210,6 +210,20 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(resistance_capacitive),
 	POWER_SUPPLY_ATTR(resistance_id),
 	POWER_SUPPLY_ATTR(resistance_now),
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	POWER_SUPPLY_ATTR(gauge_ocv_correct),
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	POWER_SUPPLY_ATTR(temp_cold),
+	POWER_SUPPLY_ATTR(temp_hot),
+	POWER_SUPPLY_ATTR(sw_jeita_stop_charging),
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(usb_otg),
@@ -349,6 +363,18 @@ int power_supply_uevent(struct device *dev, struct kobj_uevent_env *env)
 		}
 
 		dev_dbg(dev, "prop %s=%s\n", attrname, prop_buf);
+		
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		if ((env->envp_idx+1) >= UEVENT_NUM_ENVP) {
+			kfree(attrname);
+			ret = 0;
+			goto out;	
+		}
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 
 		ret = add_uevent_var(env, "POWER_SUPPLY_%s=%s", attrname, prop_buf);
 		kfree(attrname);

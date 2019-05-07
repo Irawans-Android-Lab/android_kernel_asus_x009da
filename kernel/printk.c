@@ -55,6 +55,17 @@
 extern void printascii(char *);
 #endif
 
+// [5830][AsusLog][akenhsu] Add real timestamp on kernel log 20160202 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+#include <linux/rtc.h>
+#include <linux/kthread.h>
+#include <linux/module.h>
+#include <linux/delay.h>
+extern struct timezone sys_tz;
+#endif
+// [5830][AsusLog][akenhsu] 20160202 END
+
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL CONFIG_DEFAULT_MESSAGE_LOGLEVEL
 
@@ -1019,9 +1030,29 @@ static bool printk_time;
 #endif
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
 
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+#include <linux/rtc.h>
+extern struct timezone sys_tz;
+extern int e_rtc_ready;
+int boot_after_60sec = 0;
+int nSuspendInProgress;
+
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
+
 static size_t print_time(u64 ts, char *buf)
 {
 	unsigned long rem_nsec;
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+	#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+    	(CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+		struct timespec timespec;
+		struct rtc_time tm;
+		int this_cpu = smp_processor_id();
+	#endif
+	// [5830][ArimaLog][akenhsu] 20160219 END
 
 	if (!printk_time)
 		return 0;
@@ -1030,6 +1061,38 @@ static size_t print_time(u64 ts, char *buf)
 
 	if (!buf)
 		return snprintf(NULL, 0, "[%5lu.000000] ", (unsigned long)ts);
+
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	if (boot_after_60sec == 0 && ts >= 60)
+		boot_after_60sec = 1;
+
+	if (e_rtc_ready && !nSuspendInProgress) {
+
+		getnstimeofday(&timespec);
+
+		timespec.tv_sec -= sys_tz.tz_minuteswest * 60;
+
+		rtc_time_to_tm(timespec.tv_sec, &tm);
+
+// [5830][ArimaLog][akenhsu] Fix coverity issue 20160531 BEGIN
+		// if (!buf) return snprintf(NULL, 0, "[%5lu.000000] ", (unsigned long)ts);
+// [5830][ArimaLog][akenhsu] 20160531 END
+		return sprintf(buf, "[%5lu.%06lu][%d-%02d-%02d %02d:%02d:%02d.%09lu](CPU:%d PID:%d %s) ",
+			(unsigned long)ts, rem_nsec / 1000,
+			1900 + tm.tm_year, 1 + tm.tm_mon, tm.tm_mday,
+			tm.tm_hour, tm.tm_min, tm.tm_sec, timespec.tv_nsec,
+			this_cpu, current->pid, current->comm);
+	} else {
+		if (current) {
+			return sprintf(buf, "[%5lu.%06lu](CPU:%d PID:%d %s) ",
+				(unsigned long)ts, rem_nsec / 1000,
+				this_cpu, current->pid, current->comm);
+		}
+	}
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 
 	return sprintf(buf, "[%5lu.%06lu] ",
 		       (unsigned long)ts, rem_nsec / 1000);
@@ -1054,7 +1117,17 @@ static size_t print_prefix(const struct log *msg, bool syslog, char *buf)
 		}
 	}
 
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+    // Remove this line to avoid dmesg will cause "dmesg: klogctl: Bad address" issue
+#else
+	// [5830][ArimaLog][akenhsu] 20160219 END
 	len += print_time(msg->ts_nsec, buf ? buf + len : NULL);
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+	// [5830][ArimaLog][akenhsu] 20160219 END
+
 	return len;
 }
 
@@ -1791,6 +1864,17 @@ asmlinkage int vprintk_emit(int facility, int level,
 	unsigned long flags;
 	int this_cpu;
 	int printed_len = 0;
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	static char arimabuf[LOG_LINE_MAX];
+	char *arimatext = arimabuf;
+	u64 ts = 0;
+	char time_buf[512];
+	size_t time_size = 0;
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+	// [5830][ArimaLog][akenhsu] 20160219 END
 
 	boot_delay_msec(level);
 	printk_delay();
@@ -1836,20 +1920,56 @@ asmlinkage int vprintk_emit(int facility, int level,
 	 * The printf needs to come first; we need the syslog
 	 * prefix which might be passed-in as a parameter.
 	 */
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	text_len = vscnprintf(arimatext, sizeof(arimabuf), fmt, args);
+#else
+	// [5830][ArimaLog][akenhsu] 20160219 END
 	text_len = vscnprintf(text, sizeof(textbuf), fmt, args);
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+	// [5830][ArimaLog][akenhsu] 20160219 END
 
 	/* mark and strip a trailing newline */
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	if (text_len && arimatext[text_len-1] == '\n') {
+#else
+	// [5830][ArimaLog][akenhsu] 20160219 END
 	if (text_len && text[text_len-1] == '\n') {
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+	// [5830][ArimaLog][akenhsu] 20160219 END
 		text_len--;
 		lflags |= LOG_NEWLINE;
 	}
 
 	/* strip kernel syslog prefix and extract log level or control flags */
 	if (facility == 0) {
+		// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+		int kern_level = printk_get_level(arimatext);
+#else
+	// [5830][ArimaLog][akenhsu] 20160219 END
 		int kern_level = printk_get_level(text);
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+	// [5830][ArimaLog][akenhsu] 20160219 END
 
 		if (kern_level) {
+			// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+			const char *end_of_header = printk_skip_level(arimatext);
+#else
+// [5830][ArimaLog][akenhsu] 20160219 END
 			const char *end_of_header = printk_skip_level(text);
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 			switch (kern_level) {
 			case '0' ... '7':
 				if (level == -1)
@@ -1859,14 +1979,44 @@ asmlinkage int vprintk_emit(int facility, int level,
 			case 'c':	/* KERN_CONT */
 				break;
 			}
+			// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+			text_len -= end_of_header - arimatext;
+			arimatext = (char *)end_of_header;
+#else
+// [5830][ArimaLog][akenhsu] 20160219 END
 			text_len -= end_of_header - text;
 			text = (char *)end_of_header;
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 		}
 	}
 
 #ifdef CONFIG_EARLY_PRINTK_DIRECT
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	printascii(arimatext);
+#else
+	// [5830][ArimaLog][akenhsu] 20160219 END
 	printascii(text);
+	// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
 #endif
+	// [5830][ArimaLog][akenhsu] 20160219 END
+#endif
+
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	ts = local_clock();
+	time_size = print_time(ts, time_buf);
+	strncpy(text, time_buf, time_size);
+	strncpy(text+time_size, arimatext, text_len);
+	text_len += time_size;
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 
 	if (level == -1)
 		level = default_message_loglevel;
@@ -1884,7 +2034,16 @@ asmlinkage int vprintk_emit(int facility, int level,
 
 		/* buffer line if possible, otherwise store it right away */
 		if (!cont_add(facility, level, text, text_len))
+			// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+			log_store(facility, level, lflags | LOG_CONT, ts,
+#else
+// [5830][ArimaLog][akenhsu] 20160219 END
 			log_store(facility, level, lflags | LOG_CONT, 0,
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 				  dict, dictlen, text, text_len);
 	} else {
 		bool stored = false;
@@ -1902,7 +2061,16 @@ asmlinkage int vprintk_emit(int facility, int level,
 		}
 
 		if (!stored)
+			// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+			log_store(facility, level, lflags, ts,
+#else
+// [5830][ArimaLog][akenhsu] 20160219 END
 			log_store(facility, level, lflags, 0,
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 				  dict, dictlen, text, text_len);
 	}
 	printed_len += text_len;
@@ -2183,6 +2351,12 @@ MODULE_PARM_DESC(console_suspend, "suspend console during suspend"
  */
 void suspend_console(void)
 {
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	nSuspendInProgress = 1;
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 	if (!console_suspend_enabled)
 		return;
 	printk("Suspending console(s) (use no_console_suspend to debug)\n");
@@ -2193,6 +2367,12 @@ void suspend_console(void)
 
 void resume_console(void)
 {
+// [5830][ArimaLog][akenhsu] Add more info to kernel log 20160219 BEGIN
+#if ((CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833)) || \
+     (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830)))
+	nSuspendInProgress = 0;
+#endif
+// [5830][ArimaLog][akenhsu] 20160219 END
 	if (!console_suspend_enabled)
 		return;
 	down(&console_sem);

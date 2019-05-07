@@ -26,6 +26,14 @@
 #include <linux/leds.h>
 #include <linux/debugfs.h>
 
+/*[Arima_5830][bozhi_lin] dynamic disable btc based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic set hot cold pct based on PCBA_ID0 & PCBA_ID1 to check hw version 20160524 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+#include <linux/of_gpio.h>
+#endif
+/*[Arima_5833][bozhi_lin] 20160524 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 
@@ -213,6 +221,28 @@ static enum power_supply_property msm_batt_power_props[] = {
 	POWER_SUPPLY_PROP_COOL_TEMP,
 	POWER_SUPPLY_PROP_WARM_TEMP,
 	POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL,
+/*[Arima_5830][bozhi_lin] implement read battery state-of-health 20160310 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CYCLE_COUNT,
+#endif
+/*[Arima_5830][bozhi_lin] 20160310 end*/
+/*[Arima_5833][bozhi_lin] always show battery capacity to 2070mA 20160721 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
+#endif
+/*[Arima_5833][bozhi_lin] 20160721 end*/
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	POWER_SUPPLY_PROP_COLD_TEMP,
+	POWER_SUPPLY_PROP_HOT_TEMP,
+	POWER_SUPPLY_PROP_SW_JEITA_STOP_CHARGING,
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 };
 
 static char *pm_batt_supplied_to[] = {
@@ -329,6 +359,14 @@ struct qpnp_lbc_chip {
 	u16				misc_base;
 	bool				bat_is_cool;
 	bool				bat_is_warm;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	bool				bat_is_cold;
+	bool				bat_is_hot;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	bool				chg_done;
 	bool				usb_present;
 	bool				batt_present;
@@ -363,6 +401,15 @@ struct qpnp_lbc_chip {
 	int				cfg_bpd_detection;
 	int				cfg_warm_bat_decidegc;
 	int				cfg_cool_bat_decidegc;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	int				cfg_hot_bat_decidegc;
+	int				cfg_cold_bat_decidegc;
+	bool			sw_jeita_stop_charging;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	int				fake_battery_soc;
 	int				cfg_soc_resume_limit;
 	int				cfg_float_charge;
@@ -402,6 +449,26 @@ struct qpnp_lbc_chip {
 	/* parallel-chg params */
 	struct power_supply		parallel_psy;
 	struct delayed_work		parallel_work;
+/*[Arima_5830][bozhi_lin] mm8033 battery gauge ic driver porting 20160205 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	struct power_supply		*batt_gauge_mm8033_psy;
+#endif
+/*[Arima_5830][bozhi_lin] 20160205 end*/
+
+/*[Arima_5830][bozhi_lin] dynamic disable btc based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic set hot cold pct based on PCBA_ID0 & PCBA_ID1 to check hw version 20160524 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	enum board_version hw_version;
+#endif
+/*[Arima_5833][bozhi_lin] 20160524 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+/*[Arima_5833][bozhi_lin] set battery temperature after 1 mins 20160629 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	bool			last_charger_present;
+	int				last_batt_temp;
+	int				last_temp_change_sec;
+#endif
+/*[Arima_5833][bozhi_lin] 20160629 end*/
 };
 
 static void qpnp_lbc_enable_irq(struct qpnp_lbc_chip *chip,
@@ -937,12 +1004,29 @@ static int qpnp_lbc_set_appropriate_vddmax(struct qpnp_lbc_chip *chip)
 {
 	int rc;
 
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (chip->bat_is_cold)
+		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_cool_bat_mv);
+	else if (chip->bat_is_cool)
+		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_cool_bat_mv);
+	else if (chip->bat_is_warm)
+		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_warm_bat_mv);
+	else if (chip->bat_is_hot)
+		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_warm_bat_mv);
+	else
+		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_max_voltage_mv);
+#else
 	if (chip->bat_is_cool)
 		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_cool_bat_mv);
 	else if (chip->bat_is_warm)
 		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_warm_bat_mv);
 	else
 		rc = qpnp_lbc_vddmax_set(chip, chip->cfg_max_voltage_mv);
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	if (rc)
 		pr_err("Failed to set appropriate vddmax rc=%d\n", rc);
 
@@ -1002,7 +1086,13 @@ static int qpnp_lbc_vinmin_set(struct qpnp_lbc_chip *chip, int voltage)
 }
 
 #define QPNP_LBC_IBATSAFE_MIN_MA	90
+/*[Arima_5816][bozhi_lin] For meet Asus 1A spec, both set IBATMAX & IBATSAFE to 900mA 20160308 begin*/
+#if 1
+#define QPNP_LBC_IBATSAFE_MAX_MA	900
+#else
 #define QPNP_LBC_IBATSAFE_MAX_MA	1440
+#endif
+/*[Arima_5816][bozhi_lin] 20160308 end*/
 #define QPNP_LBC_I_STEP_MA		90
 static int qpnp_lbc_ibatsafe_set(struct qpnp_lbc_chip *chip, int safe_current)
 {
@@ -1028,7 +1118,13 @@ static int qpnp_lbc_ibatsafe_set(struct qpnp_lbc_chip *chip, int safe_current)
 }
 
 #define QPNP_LBC_IBATMAX_MIN	90
+/*[Arima_5816][bozhi_lin] For meet Asus 1A spec, both set IBATMAX & IBATSAFE to 900mA 20160308 begin*/
+#if 1
+#define QPNP_LBC_IBATMAX_MAX	900
+#else
 #define QPNP_LBC_IBATMAX_MAX	1440
+#endif
+/*[Arima_5816][bozhi_lin] 20160308 end*/
 /*
  * Set maximum current limit from charger
  * ibat =  System current + charging current
@@ -1223,6 +1319,22 @@ static int get_prop_battery_voltage_now(struct qpnp_lbc_chip *chip)
 		return 0;
 	}
 
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160608 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	{
+		union power_supply_propval ret = {0,};
+
+		if (chip->batt_gauge_mm8033_psy) {
+			chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_VOLTAGE_NOW, &ret);
+			result.physical = ret.intval;
+		} else {
+			pr_debug("No Gauge MM8033 supply registered return 0\n");
+		}
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160608 end*/
+
 	return results.physical;
 }
 
@@ -1262,6 +1374,16 @@ static int get_prop_batt_health(struct qpnp_lbc_chip *chip)
 		return POWER_SUPPLY_HEALTH_COOL;
 	if (chip->bat_is_warm)
 		return POWER_SUPPLY_HEALTH_WARM;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (chip->bat_is_cold)
+		return POWER_SUPPLY_HEALTH_COLD;
+	if (chip->bat_is_hot)
+		return POWER_SUPPLY_HEALTH_OVERHEAT;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 
 	return POWER_SUPPLY_HEALTH_GOOD;
 }
@@ -1320,6 +1442,18 @@ static int get_prop_current_now(struct qpnp_lbc_chip *chip)
 		pr_debug("No BMS supply registered return 0\n");
 	}
 
+	/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160608 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	if (chip->batt_gauge_mm8033_psy) {
+		chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_CURRENT_NOW, &ret);
+		return ret.intval;
+	} else {
+		pr_debug("No BMS supply registered return 0\n");
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160608 end*/
+
 	return 0;
 }
 
@@ -1332,9 +1466,35 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 	if (chip->fake_battery_soc >= 0)
 		return chip->fake_battery_soc;
 
+/*[Arima_5833][bozhi_lin] disable charging when battery is gone 20160822 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	if (!get_prop_batt_present(chip)) {
+		pr_err("Battery absent, disable charging to shutdown");
+		qpnp_lbc_charger_enable(chip, USER, 0);
+	}
+#endif
+/*[Arima_5833][bozhi_lin] 20160822 end*/
+
 	if (chip->cfg_use_fake_battery || !get_prop_batt_present(chip))
 		return DEFAULT_CAPACITY;
 
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+/*[Arima_5830][bozhi_lin] mm8033 battery gauge ic driver porting 20160205 begin*/
+#if 0
+	if (chip->batt_gauge_mm8033_psy) {
+		chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_CAPACITY, &ret);
+		soc = ret.intval;
+		if (soc == 0) {
+			if (!qpnp_lbc_is_usb_chg_plugged_in(chip))
+				pr_warn_ratelimited("Batt 0, CHG absent\n");
+		}
+		return soc;
+	} else {
+		pr_debug("No Gauge MM8033 supply registered return %d\n",
+							DEFAULT_CAPACITY);
+	}
+#else
 	if (chip->bms_psy) {
 		chip->bms_psy->get_property(chip->bms_psy,
 				POWER_SUPPLY_PROP_CAPACITY, &ret);
@@ -1348,6 +1508,9 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 		pr_debug("No BMS supply registered return %d\n",
 							DEFAULT_CAPACITY);
 	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160205 end*/
+/*[Arima_5830][bozhi_lin] 20160408 end*/
 
 	/*
 	 * Return default capacity to avoid userspace
@@ -1356,11 +1519,91 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 	return DEFAULT_CAPACITY;
 }
 
+/*[Arima_5833][bozhi_lin] set battery temperature after 1 mins 20160629 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+#define TEMP_CHANGE_TIME	60
+static int get_current_time(unsigned long *now_tm_sec)
+{
+	struct rtc_time tm;
+	struct rtc_device *rtc;
+	int rc;
+
+	rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
+	if (rtc == NULL) {
+		pr_err("%s: unable to open rtc device (%s)\n",
+			__FILE__, CONFIG_RTC_HCTOSYS_DEVICE);
+		return -EINVAL;
+	}
+
+	rc = rtc_read_time(rtc, &tm);
+	if (rc) {
+		pr_err("Error reading rtc device (%s) : %d\n",
+			CONFIG_RTC_HCTOSYS_DEVICE, rc);
+		goto close_time;
+	}
+
+	rc = rtc_valid_tm(&tm);
+	if (rc) {
+		pr_err("Invalid RTC time (%s): %d\n",
+			CONFIG_RTC_HCTOSYS_DEVICE, rc);
+		goto close_time;
+	}
+	rtc_tm_to_time(&tm, now_tm_sec);
+
+close_time:
+	rtc_class_close(rtc);
+	return rc;
+}
+
+static int calculate_delta_time(unsigned long *time_stamp, int *delta_time_s)
+{
+	unsigned long now_tm_sec = 0;
+
+	/* default to delta time = 0 if anything fails */
+	*delta_time_s = 0;
+
+	if (get_current_time(&now_tm_sec)) {
+		pr_err("RTC read failed\n");
+		return 0;
+	}
+
+	*delta_time_s = (now_tm_sec - *time_stamp);
+
+	/* remember this time */
+	*time_stamp = now_tm_sec;
+	return 0;
+}
+
+static bool is_charger_present(struct qpnp_lbc_chip *chip)
+{
+	union power_supply_propval ret = {0,};
+
+	if (chip->usb_psy == NULL)
+		chip->usb_psy = power_supply_get_by_name("usb");
+	if (chip->usb_psy) {
+		chip->usb_psy->get_property(chip->usb_psy,
+					POWER_SUPPLY_PROP_PRESENT, &ret);
+		return ret.intval;
+	}
+
+	return false;
+}
+#endif
+/*[Arima_5833][bozhi_lin] 20160629 end*/
+
 #define DEFAULT_TEMP		250
 static int get_prop_batt_temp(struct qpnp_lbc_chip *chip)
 {
 	int rc = 0;
 	struct qpnp_vadc_result results;
+	int batt_temp = DEFAULT_TEMP;
+/*[Arima_5833][bozhi_lin] set battery temperature after 1 mins 20160629 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	bool charger_present = is_charger_present(chip);
+	int time_since_last_change_sec = 0;
+	unsigned long last_change_sec = chip->last_temp_change_sec;
+#endif
+/*[Arima_5833][bozhi_lin] 20160629 end*/
 
 	if (chip->cfg_use_fake_battery || !get_prop_batt_present(chip))
 		return DEFAULT_TEMP;
@@ -1370,11 +1613,126 @@ static int get_prop_batt_temp(struct qpnp_lbc_chip *chip)
 		pr_debug("Unable to read batt temperature rc=%d\n", rc);
 		return DEFAULT_TEMP;
 	}
+
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160608 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	{
+		union power_supply_propval ret = {0,};
+	
+		if (chip->batt_gauge_mm8033_psy) {
+			chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_TEMP, &ret);
+			batt_temp = ret.intval;
+		} else {
+			pr_debug("No Gauge MM8033 supply registered return %d\n", DEFAULT_TEMP);
+		}
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160608 end*/
+
+/*[Arima_5833][bozhi_lin] set battery temperature after 1 mins 20160629 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	if (charger_present ^ chip->last_charger_present) {
+		get_current_time(&last_change_sec);
+	}
+
+	calculate_delta_time(&last_change_sec, &time_since_last_change_sec);
+
+	if (time_since_last_change_sec < TEMP_CHANGE_TIME) {
+		batt_temp = chip->last_batt_temp;
+	}
+#endif
+/*[Arima_5833][bozhi_lin] 20160629 end*/
+
 	pr_debug("get_bat_temp %d, %lld\n", results.adc_code,
 							results.physical);
 
+/*[Arima_5833][bozhi_lin] set battery temperature after 1 mins 20160629 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	pr_debug("[B]%s(%d): batt_temp=%d, last_batt_temp=%d\n", __func__, __LINE__, batt_temp, chip->last_batt_temp);
+
+	if (charger_present) {
+		chip->last_charger_present = true;
+	}
+	else {
+		chip->last_charger_present = false;
+	}
+
+	chip->last_batt_temp = batt_temp;
+	chip->last_temp_change_sec = last_change_sec;
+#endif
+/*[Arima_5833][bozhi_lin] 20160629 end*/
+
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	return batt_temp;
+#else
 	return (int)results.physical;
+#endif
 }
+
+/*[Arima_5830][bozhi_lin] implement read battery state-of-health 20160310 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+static int get_prop_charge_full_design(struct qpnp_lbc_chip *chip)
+{
+	union power_supply_propval ret = {0,};
+
+	if (chip->batt_gauge_mm8033_psy) {
+		chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN, &ret);
+		return ret.intval;
+	} else {
+		pr_err("No MM8033 supply registered return 0\n");
+	}
+
+	return 0;
+}
+
+static int get_prop_charge_full(struct qpnp_lbc_chip *chip)
+{
+	union power_supply_propval ret = {0,};
+
+	if (chip->batt_gauge_mm8033_psy) {
+		chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_CHARGE_FULL, &ret);
+		return ret.intval;
+	} else {
+		pr_err("No MM8033 supply registered return 0\n");
+	}
+
+	return 0;
+}
+
+static int get_prop_cycle_count(struct qpnp_lbc_chip *chip)
+{
+	union power_supply_propval ret = {0,};
+
+	if (chip->batt_gauge_mm8033_psy) {
+		chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_CYCLE_COUNT, &ret);
+		return ret.intval;
+	} else {
+		pr_err("No MM8033 supply registered return 0\n");
+	}
+
+	return 0;
+}
+#endif
+/*[Arima_5830][bozhi_lin] 20160310 end*/
+
+/*[Arima_5833][bozhi_lin] always show battery capacity to 2070mA 20160721 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+#define BATTERY_FULL_MAH 	2070
+static int get_prop_charge_full_design(struct qpnp_lbc_chip *chip)
+{
+	return (BATTERY_FULL_MAH * 1000);
+}
+
+static int get_prop_charge_full(struct qpnp_lbc_chip *chip)
+{
+	return (BATTERY_FULL_MAH * 1000);
+}
+#endif
+/*[Arima_5833][bozhi_lin] 20160721 end*/
 
 static void qpnp_lbc_set_appropriate_current(struct qpnp_lbc_chip *chip)
 {
@@ -1391,6 +1749,22 @@ static void qpnp_lbc_set_appropriate_current(struct qpnp_lbc_chip *chip)
 		chg_current = min(chg_current,
 			chip->thermal_mitigation[chip->therm_lvl_sel]);
 
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (chip-> sw_jeita_stop_charging) {
+		if (chip->bat_is_cold || chip->bat_is_hot) {
+			chip->cfg_charging_disabled = true;
+			qpnp_lbc_charger_enable(chip, USER, !chip->cfg_charging_disabled);
+		} else {
+			chip->cfg_charging_disabled = false;
+			qpnp_lbc_charger_enable(chip, USER, !chip->cfg_charging_disabled);
+		}
+	}
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
+
 	pr_debug("setting charger current %d mA\n", chg_current);
 	qpnp_lbc_ibatmax_set(chip, chg_current);
 }
@@ -1406,6 +1780,13 @@ static void qpnp_batt_external_power_changed(struct power_supply *psy)
 	spin_lock_irqsave(&chip->ibat_change_lock, flags);
 	if (!chip->bms_psy)
 		chip->bms_psy = power_supply_get_by_name("bms");
+
+/*[Arima_5830][bozhi_lin] mm8033 battery gauge ic driver porting 20160205 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	if (!chip->batt_gauge_mm8033_psy)
+		chip->batt_gauge_mm8033_psy = power_supply_get_by_name("gauge_mm8033");
+#endif
+/*[Arima_5830][bozhi_lin] 20160205 end*/
 
 	if (qpnp_lbc_is_usb_chg_plugged_in(chip)) {
 		chip->usb_psy->get_property(chip->usb_psy,
@@ -1516,10 +1897,32 @@ static int qpnp_lbc_configure_jeita(struct qpnp_lbc_chip *chip,
 			rc = -EINVAL;
 			goto mutex_unlock;
 		}
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		if (temp_degc <=
+			(chip->cfg_cold_bat_decidegc)) {
+			pr_err("Can't set cool %d lower than cold %d\n",
+					temp_degc,
+					chip->cfg_cold_bat_decidegc);
+			rc = -EINVAL;
+			goto mutex_unlock;
+		}
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 		if (chip->bat_is_cool)
 			chip->adc_param.high_temp =
 				temp_degc + HYSTERISIS_DECIDEGC;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		else if (!chip->bat_is_warm && !chip->bat_is_cold && !chip->bat_is_hot)
+#else
 		else if (!chip->bat_is_warm)
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 			chip->adc_param.low_temp = temp_degc;
 
 		chip->cfg_cool_bat_decidegc = temp_degc;
@@ -1534,14 +1937,70 @@ static int qpnp_lbc_configure_jeita(struct qpnp_lbc_chip *chip,
 			rc = -EINVAL;
 			goto mutex_unlock;
 		}
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		if (temp_degc >= 
+		(chip->cfg_hot_bat_decidegc)) {
+			pr_err("Can't set warm %d higher than hot %d\n",
+					temp_degc,
+					chip->cfg_hot_bat_decidegc);
+			rc = -EINVAL;
+			goto mutex_unlock;
+		}
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 		if (chip->bat_is_warm)
 			chip->adc_param.low_temp =
 				temp_degc - HYSTERISIS_DECIDEGC;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		else if (!chip->bat_is_cool && !chip->bat_is_cold && !chip->bat_is_hot)
+#else
 		else if (!chip->bat_is_cool)
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 			chip->adc_param.high_temp = temp_degc;
 
 		chip->cfg_warm_bat_decidegc = temp_degc;
 		break;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	case POWER_SUPPLY_PROP_COLD_TEMP:
+		if (temp_degc >= (chip->cfg_cool_bat_decidegc)) {
+			pr_err("Can't set cold %d higher than cool %d\n",
+					temp_degc, chip->cfg_cool_bat_decidegc);
+			rc = -EINVAL;
+			goto mutex_unlock;
+		}
+		if (chip->bat_is_cold)
+			chip->adc_param.high_temp =
+				temp_degc + HYSTERISIS_DECIDEGC;
+		else if (chip->bat_is_cool)
+			chip->adc_param.low_temp = temp_degc;
+		chip->cfg_cold_bat_decidegc = temp_degc;
+		break;
+	case POWER_SUPPLY_PROP_HOT_TEMP:
+		if (temp_degc <= (chip->cfg_warm_bat_decidegc)) {
+			pr_err("Can't set hot %d lower than warm %d\n",
+					temp_degc, chip->cfg_warm_bat_decidegc);
+			rc = -EINVAL;
+			goto mutex_unlock;
+		}
+		if (chip->bat_is_hot)
+			chip->adc_param.low_temp =
+				temp_degc - HYSTERISIS_DECIDEGC;
+		else if (chip->bat_is_warm)
+			chip->adc_param.high_temp = temp_degc;
+		chip->cfg_hot_bat_decidegc = temp_degc;
+		break;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	default:
 		rc = -EINVAL;
 		goto mutex_unlock;
@@ -1566,6 +2025,15 @@ static int qpnp_batt_property_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_MIN:
 	case POWER_SUPPLY_PROP_WARM_TEMP:
 	case POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL:
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	case POWER_SUPPLY_PROP_COLD_TEMP:
+	case POWER_SUPPLY_PROP_HOT_TEMP:
+	case POWER_SUPPLY_PROP_SW_JEITA_STOP_CHARGING:
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 		return 1;
 	default:
 		break;
@@ -1661,6 +2129,21 @@ static int qpnp_batt_power_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_WARM_TEMP:
 		rc = qpnp_lbc_configure_jeita(chip, psp, val->intval);
 		break;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	case POWER_SUPPLY_PROP_COLD_TEMP:
+		rc = qpnp_lbc_configure_jeita(chip, psp, val->intval);
+		break;
+	case POWER_SUPPLY_PROP_HOT_TEMP:
+		rc = qpnp_lbc_configure_jeita(chip, psp, val->intval);
+		break;
+	case POWER_SUPPLY_PROP_SW_JEITA_STOP_CHARGING:
+		chip->sw_jeita_stop_charging = val->intval;
+		break;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	case POWER_SUPPLY_PROP_CAPACITY:
 		chip->fake_battery_soc = val->intval;
 		pr_debug("power supply changed batt_psy\n");
@@ -1724,6 +2207,21 @@ static int qpnp_batt_power_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_WARM_TEMP:
 		val->intval = chip->cfg_warm_bat_decidegc;
 		break;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	case POWER_SUPPLY_PROP_COLD_TEMP:
+		val->intval = chip->cfg_cold_bat_decidegc;
+		break;
+	case POWER_SUPPLY_PROP_HOT_TEMP:
+		val->intval = chip->cfg_hot_bat_decidegc;
+		break;
+	case POWER_SUPPLY_PROP_SW_JEITA_STOP_CHARGING:
+		val->intval = chip->sw_jeita_stop_charging;
+		break;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	case POWER_SUPPLY_PROP_CAPACITY:
 		val->intval = get_prop_capacity(chip);
 		break;
@@ -1736,6 +2234,29 @@ static int qpnp_batt_power_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL:
 		val->intval = chip->therm_lvl_sel;
 		break;
+/*[Arima_5830][bozhi_lin] implement read battery state-of-health 20160310 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		val->intval = get_prop_charge_full_design(chip);
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = get_prop_charge_full(chip);
+		break;
+	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+		val->intval = get_prop_cycle_count(chip);
+		break;
+#endif
+/*[Arima_5830][bozhi_lin] 20160310 end*/
+/*[Arima_5833][bozhi_lin] always show battery capacity to 2070mA 20160721 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		val->intval = get_prop_charge_full_design(chip);
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = get_prop_charge_full(chip);
+		break;
+#endif
+/*[Arima_5833][bozhi_lin] 20160721 end*/
 	default:
 		return -EINVAL;
 	}
@@ -1888,6 +2409,13 @@ static void qpnp_lbc_jeita_adc_notification(enum qpnp_tm_state state, void *ctx)
 {
 	struct qpnp_lbc_chip *chip = ctx;
 	bool bat_warm = 0, bat_cool = 0;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	bool bat_hot = 0, bat_cold = 0;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	int temp;
 	unsigned long flags;
 
@@ -1901,6 +2429,86 @@ static void qpnp_lbc_jeita_adc_notification(enum qpnp_tm_state state, void *ctx)
 	pr_debug("temp = %d state = %s\n", temp,
 			state == ADC_TM_WARM_STATE ? "warm" : "cool");
 
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (state == ADC_TM_WARM_STATE) {
+		if (temp > chip->cfg_hot_bat_decidegc) {
+			/* Warm to Hot */
+			bat_hot = true;
+			bat_warm = false;
+			bat_cool = false;
+			bat_cold = false;
+			chip->adc_param.low_temp = chip->cfg_hot_bat_decidegc - HYSTERISIS_DECIDEGC;
+			chip->adc_param.state_request = ADC_TM_COOL_THR_ENABLE;
+		} else if (temp > chip->cfg_warm_bat_decidegc) {
+			/* Normal to warm */
+			bat_hot = false;
+			bat_warm = true;
+			bat_cool = false;
+			bat_cold = false;
+			chip->adc_param.low_temp = chip->cfg_warm_bat_decidegc - HYSTERISIS_DECIDEGC;
+			chip->adc_param.high_temp = chip->cfg_hot_bat_decidegc;
+			chip->adc_param.state_request = ADC_TM_HIGH_LOW_THR_ENABLE;
+		} else if (temp > chip->cfg_cool_bat_decidegc){
+			/* Cool to normal */
+			bat_hot = false;
+			bat_warm = false;
+			bat_cool = false;
+			bat_cold = false;
+			chip->adc_param.low_temp = chip->cfg_cool_bat_decidegc - HYSTERISIS_DECIDEGC;
+			chip->adc_param.high_temp = chip->cfg_warm_bat_decidegc;
+			chip->adc_param.state_request = ADC_TM_HIGH_LOW_THR_ENABLE;
+		} else if (temp >
+				chip->cfg_cold_bat_decidegc){
+			/* cold to cool */
+			bat_hot = false;
+			bat_warm = false;
+			bat_cool = true;
+			bat_cold = false;
+			chip->adc_param.low_temp = chip->cfg_cold_bat_decidegc - HYSTERISIS_DECIDEGC;;
+			chip->adc_param.high_temp = chip->cfg_cool_bat_decidegc;
+			chip->adc_param.state_request = ADC_TM_HIGH_LOW_THR_ENABLE;
+		}
+	} else {
+		if (temp < chip->cfg_cold_bat_decidegc) {
+			/* Cool to Cold */
+			bat_hot = false;
+			bat_warm = false;
+			bat_cool = false;
+			bat_cold = true;
+			chip->adc_param.high_temp = chip->cfg_cold_bat_decidegc + HYSTERISIS_DECIDEGC;
+			chip->adc_param.state_request = ADC_TM_WARM_THR_ENABLE;	
+		} else if (temp < chip->cfg_cool_bat_decidegc) {
+			/* Normal to cool */
+			bat_hot = false;
+			bat_warm = false;
+			bat_cool = true;
+			bat_cold = false;
+			chip->adc_param.low_temp = chip->cfg_cold_bat_decidegc;
+			chip->adc_param.high_temp = chip->cfg_cool_bat_decidegc + HYSTERISIS_DECIDEGC;
+			chip->adc_param.state_request = ADC_TM_HIGH_LOW_THR_ENABLE;
+		} else if (temp < chip->cfg_warm_bat_decidegc){
+			/* Warm to normal */
+			bat_hot = false;
+			bat_warm = false;
+			bat_cool = false;
+			bat_cold = false;
+			chip->adc_param.low_temp = chip->cfg_cool_bat_decidegc;
+			chip->adc_param.high_temp = chip->cfg_warm_bat_decidegc + HYSTERISIS_DECIDEGC;
+			chip->adc_param.state_request = ADC_TM_HIGH_LOW_THR_ENABLE;
+		} else if (temp < chip->cfg_hot_bat_decidegc){
+			/* hot to warm */
+			bat_hot = false;
+			bat_warm = true;
+			bat_cool = false;
+			bat_cold = false;
+			chip->adc_param.low_temp = chip->cfg_warm_bat_decidegc;
+			chip->adc_param.high_temp = chip->cfg_hot_bat_decidegc + HYSTERISIS_DECIDEGC;
+			chip->adc_param.state_request = ADC_TM_HIGH_LOW_THR_ENABLE;
+		}
+	}
+#else
 	if (state == ADC_TM_WARM_STATE) {
 		if (temp >= chip->cfg_warm_bat_decidegc) {
 			/* Normal to warm */
@@ -1948,15 +2556,42 @@ static void qpnp_lbc_jeita_adc_notification(enum qpnp_tm_state state, void *ctx)
 					ADC_TM_HIGH_LOW_THR_ENABLE;
 		}
 	}
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (chip->bat_is_cool ^ bat_cool || chip->bat_is_warm ^ bat_warm || 
+		chip->bat_is_cold ^ bat_cold || chip->bat_is_hot ^ bat_hot) {
+#else
 	if (chip->bat_is_cool ^ bat_cool || chip->bat_is_warm ^ bat_warm) {
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 		spin_lock_irqsave(&chip->ibat_change_lock, flags);
 		chip->bat_is_cool = bat_cool;
 		chip->bat_is_warm = bat_warm;
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		chip->bat_is_cold = bat_cold;
+		chip->bat_is_hot = bat_hot;
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 		qpnp_lbc_set_appropriate_vddmax(chip);
 		qpnp_lbc_set_appropriate_current(chip);
 		spin_unlock_irqrestore(&chip->ibat_change_lock, flags);
 	}
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	pr_debug("hot  %d, cold %d\n", chip->bat_is_hot, chip->bat_is_cold);
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 
 	pr_debug("warm %d, cool %d, low = %d deciDegC, high = %d deciDegC\n",
 			chip->bat_is_warm, chip->bat_is_cool,
@@ -2204,6 +2839,15 @@ static int show_lbc_config(struct seq_file *m, void *data)
 			"cfg_bpd_detection\t=\t%d\n"
 			"cfg_warm_bat_decidegc\t=\t%d\n"
 			"cfg_cool_bat_decidegc\t=\t%d\n"
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+			"cfg_hot_bat_decidegc\t=\t%d\n"
+			"cfg_cold_bat_decidegc\t=\t%d\n"
+			"sw_jeita_stop_charging\t=\t%d\n"
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 			"cfg_soc_resume_limit\t=\t%d\n"
 			"cfg_float_charge\t=\t%d\n",
 			chip->cfg_charging_disabled,
@@ -2231,6 +2875,15 @@ static int show_lbc_config(struct seq_file *m, void *data)
 			chip->cfg_bpd_detection,
 			chip->cfg_warm_bat_decidegc,
 			chip->cfg_cool_bat_decidegc,
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+			chip->cfg_hot_bat_decidegc,
+			chip->cfg_cold_bat_decidegc,
+			chip->sw_jeita_stop_charging,
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 			chip->cfg_soc_resume_limit,
 			chip->cfg_float_charge);
 
@@ -2351,6 +3004,15 @@ static int qpnp_charger_read_dt_props(struct qpnp_lbc_chip *chip)
 	OF_PROP_READ(chip, cfg_cold_batt_p, "batt-cold-percentage", rc, 1);
 	OF_PROP_READ(chip, cfg_batt_weak_voltage_uv, "vbatweak-uv", rc, 1);
 	OF_PROP_READ(chip, cfg_soc_resume_limit, "resume-soc", rc, 1);
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	OF_PROP_READ(chip, cfg_hot_bat_decidegc, "hot-bat-decidegc", rc, 1);
+	OF_PROP_READ(chip, cfg_cold_bat_decidegc, "cold-bat-decidegc", rc, 1);
+	chip->sw_jeita_stop_charging = of_property_read_bool(chip->spmi->dev.of_node, "qcom,sw-jeita-stop-charging");
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	if (rc) {
 		pr_err("Error reading optional property rc=%d\n", rc);
 		return rc;
@@ -2395,9 +3057,198 @@ static int qpnp_charger_read_dt_props(struct qpnp_lbc_chip *chip)
 		}
 	}
 
+/*[Arima_5830][bozhi_lin] dynamic disable btc based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic set hot cold pct based on PCBA_ID0 & PCBA_ID1 to check hw version 20160524 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	{
+		int err = 0;
+		int pcba_id0 = 0;
+		int pcba_id1 = 0;
+		int pcba_id2 = 0;
+		int pcba_id3 = 0;
+
+		pcba_id0 = of_get_named_gpio(chip->spmi->dev.of_node, "qcom,pcba-id0", 0);
+		pcba_id1 = of_get_named_gpio(chip->spmi->dev.of_node, "qcom,pcba-id1", 0);
+		pcba_id2 = of_get_named_gpio(chip->spmi->dev.of_node, "qcom,pcba-id2", 0);
+		pcba_id3 = of_get_named_gpio(chip->spmi->dev.of_node, "qcom,pcba-id3", 0);
+		if (gpio_is_valid(pcba_id0)) {
+			err = gpio_request(pcba_id0, "pcba_id0");
+			if (err) {
+				dev_err(chip->dev, "unable to request gpio [%d]\n", pcba_id0);
+			}
+
+			err = gpio_direction_input(pcba_id0);
+			if (err) {
+				dev_err(chip->dev, "unable to set direction for gpio [%d]\n", pcba_id0);
+			}
+		} else {
+			dev_err(chip->dev, "gpio is not valid for gpio [%d]\n", pcba_id0);
+		}
+
+		if (gpio_is_valid(pcba_id1)) {
+			err = gpio_request(pcba_id1, "pcba_id1");
+			if (err) {
+				dev_err(chip->dev, "unable to request gpio [%d]\n", pcba_id1);
+			}
+
+			err = gpio_direction_input(pcba_id1);
+			if (err) {
+				dev_err(chip->dev, "unable to set direction for gpio [%d]\n", pcba_id1);
+			}
+		} else {
+			dev_err(chip->dev, "gpio is not valid for gpio [%d]\n", pcba_id1);
+		}
+
+		if (gpio_is_valid(pcba_id2)) {
+			err = gpio_request(pcba_id2, "pcba_id2");
+			if (err) {
+				dev_err(chip->dev, "unable to request gpio [%d]\n", pcba_id2);
+			}
+
+			err = gpio_direction_input(pcba_id2);
+			if (err) {
+				dev_err(chip->dev, "unable to set direction for gpio [%d]\n", pcba_id2);
+			}
+		} else {
+			dev_err(chip->dev, "gpio is not valid for gpio [%d]\n", pcba_id2);
+		}
+		
+		if (gpio_is_valid(pcba_id3)) {
+			err = gpio_request(pcba_id3, "pcba_id3");
+			if (err) {
+				dev_err(chip->dev, "unable to request gpio [%d]\n", pcba_id3);
+			}
+
+			err = gpio_direction_input(pcba_id3);
+			if (err) {
+				dev_err(chip->dev, "unable to set direction for gpio [%d]\n", pcba_id3);
+			}
+		} else {
+			dev_err(chip->dev, "gpio is not valid for gpio [%d]\n", pcba_id3);
+		}
+
+		if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && !gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): SR\n", __func__, __LINE__);
+			chip->hw_version = board_sr;
+		} else if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): ER1\n", __func__, __LINE__);
+			chip->hw_version = board_er1;
+		} else if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && gpio_get_value(pcba_id2) && !gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): ER2\n", __func__, __LINE__);
+			chip->hw_version = board_er2;
+		} else if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && gpio_get_value(pcba_id2) && gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): PR\n", __func__, __LINE__);
+			chip->hw_version = board_pr;
+		} else if (!gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && !gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): RESERVE1\n", __func__, __LINE__);
+			chip->hw_version = reserve1;
+		} else if (!gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): RESERVE2\n", __func__, __LINE__);
+			chip->hw_version = reserve2;
+		} else {
+			pr_info("[B]%s(%d): Not support, set to PR\n", __func__, __LINE__);
+			chip->hw_version = board_pr;
+		}
+
+		pr_err("[B]%s(%d): vadc->hw_version=%d (0=SR, 1=ER1, 2=ER2, 3=PR, 4=RESERVE1, 5=RESERVE2)\n", __func__, __LINE__, chip->hw_version);
+
+		if (gpio_is_valid(pcba_id0))
+			gpio_free(pcba_id0);
+
+		if (gpio_is_valid(pcba_id1))
+			gpio_free(pcba_id1);
+
+		if (gpio_is_valid(pcba_id2))
+			gpio_free(pcba_id2);
+
+		if (gpio_is_valid(pcba_id3))
+			gpio_free(pcba_id3);
+	}
+#elif (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+	{
+		int err = 0;
+		int pcba_id0 = 0;
+		int pcba_id1 = 0;
+
+		pcba_id0 = of_get_named_gpio(chip->spmi->dev.of_node, "qcom,pcba-id0", 0);
+		pcba_id1 = of_get_named_gpio(chip->spmi->dev.of_node, "qcom,pcba-id1", 0);
+		if (gpio_is_valid(pcba_id0)) {
+			err = gpio_request(pcba_id0, "pcba_id0");
+			if (err) {
+				dev_err(chip->dev, "unable to request gpio [%d]\n", pcba_id0);
+			}
+
+			err = gpio_direction_input(pcba_id0);
+			if (err) {
+				dev_err(chip->dev, "unable to set direction for gpio [%d]\n", pcba_id0);
+			}
+		} else {
+			dev_err(chip->dev, "gpio is not valid for gpio [%d]\n", pcba_id0);
+		}
+
+		if (gpio_is_valid(pcba_id1)) {
+			err = gpio_request(pcba_id1, "pcba_id1");
+			if (err) {
+				dev_err(chip->dev, "unable to request gpio [%d]\n", pcba_id1);
+			}
+
+			err = gpio_direction_input(pcba_id1);
+			if (err) {
+				dev_err(chip->dev, "unable to set direction for gpio [%d]\n", pcba_id1);
+			}
+		} else {
+			dev_err(chip->dev, "gpio is not valid for gpio [%d]\n", pcba_id1);
+		}
+
+		if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): ER1\n", __func__, __LINE__);
+			chip->hw_version = board_er1;
+		} else if (!gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): ER1-2\n", __func__, __LINE__);
+			chip->hw_version = board_er1_2;
+		} else if (gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): ER2\n", __func__, __LINE__);
+			chip->hw_version = board_er2;
+		} else if (gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): PR\n", __func__, __LINE__);
+			chip->hw_version = board_pr;
+		} else {
+			pr_info("[B]%s(%d): Not support, set to ER2\n", __func__, __LINE__);
+			chip->hw_version = board_pr;
+		}
+
+		pr_err("[B]%s(%d): chip->hw_version=%d (0=ER1, 1=ER1-2, 2=ER2, 3=PR)\n", __func__, __LINE__, chip->hw_version);
+
+		if (gpio_is_valid(pcba_id0))
+			gpio_free(pcba_id0);
+
+		if (gpio_is_valid(pcba_id1))
+			gpio_free(pcba_id1);
+
+		if (chip->hw_version >= board_er2) {
+			chip->cfg_hot_batt_p = HOT_THD_35_PCT;
+			chip->cfg_cold_batt_p = COLD_THD_70_PCT;
+			pr_err("[B]%s(%d): re-set hot:cold pct to %d:%d\n", __func__, __LINE__, chip->cfg_hot_batt_p, chip->cfg_cold_batt_p);
+		}
+	}
+#endif
+/*[Arima_5833][bozhi_lin] 20160524 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+
 	/* Get the btc-disabled property */
 	chip->cfg_btc_disabled = of_property_read_bool(
 			chip->spmi->dev.of_node, "qcom,btc-disabled");
+
+/*[Arima_5830][bozhi_lin] dynamic disable btc based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	if (chip->hw_version >= board_pr) {
+
+	} else {
+		chip->cfg_btc_disabled = true;
+		pr_err("[B]%s(%d): disable btc\n", __func__, __LINE__);
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160525 end*/
 
 	/* Get the charging-disabled property */
 	chip->cfg_charging_disabled =
@@ -2486,6 +3337,16 @@ static int qpnp_charger_read_dt_props(struct qpnp_lbc_chip *chip)
 			chip->cfg_cool_bat_decidegc,
 			chip->cfg_hot_batt_p,
 			chip->cfg_cold_batt_p);
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	pr_debug("hot-bat-decidegc=%d, cold-bat-decidegc=%d, sw-jeita-stop-charging=%d\n",
+			chip->cfg_hot_bat_decidegc,
+			chip->cfg_cold_bat_decidegc,
+			chip->sw_jeita_stop_charging);
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	pr_debug("tchg-mins=%d, vbatweak-uv=%d, resume-soc=%d\n",
 			chip->cfg_tchg_mins,
 			chip->cfg_batt_weak_voltage_uv,
@@ -2777,6 +3638,13 @@ static irqreturn_t qpnp_lbc_vbatdet_lo_irq_handler(int irq, void *_chip)
 	 * Battery has fallen below the vbatdet threshold and it is
 	 * time to resume charging.
 	 */
+/*[Arima_5830][bozhi_lin] fix charging icon will blink with high current during end of charging 20160831 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830)
+	if (chip->chg_done) {
+		return IRQ_HANDLED; 
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160831 end*/
 	rc = qpnp_lbc_charger_enable(chip, SOC, 1);
 	if (rc)
 		pr_err("Failed to enable charging\n");
@@ -3251,6 +4119,49 @@ static int qpnp_lbc_parallel_probe(struct spmi_device *spmi)
 	return 0;
 }
 
+/*[Arima_5833][bozhi_lin] show battery version 20160616 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+static ssize_t battery_vendor_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	sprintf(buf, "Z2P2 01010001");
+
+	ret = strlen(buf) + 1;
+	return ret;
+}
+
+static DEVICE_ATTR(vendor, S_IRUGO, battery_vendor_show, NULL);
+
+static struct kobject *android_battery_kobj;
+
+static int battery_sysfs_init(void)
+{
+	int ret ;
+
+	android_battery_kobj = kobject_create_and_add("android_battery", NULL) ;
+	if (android_battery_kobj == NULL) {
+		pr_err("[B]%s(%d): subsystem_register failed\n", __func__, __LINE__);
+		ret = -ENOMEM;
+		return ret;
+	}
+	ret = sysfs_create_file(android_battery_kobj, &dev_attr_vendor.attr);
+	if (ret) {
+		pr_err("[B]%s(%d): sysfs_create_group failed\n", __func__, __LINE__);
+		return ret;
+	}
+	return 0 ;
+}
+
+static void battery_sysfs_deinit(void)
+{
+	sysfs_remove_file(android_battery_kobj, &dev_attr_vendor.attr);
+	kobject_del(android_battery_kobj);
+}
+#endif
+/*[Arima_5833][bozhi_lin] 20160616 end*/
+
 static int qpnp_lbc_main_probe(struct spmi_device *spmi)
 {
 	ktime_t kt;
@@ -3352,6 +4263,12 @@ static int qpnp_lbc_main_probe(struct spmi_device *spmi)
 			return rc;
 		}
 	}
+
+/*[Arima_5833][bozhi_lin] show battery version 20160616 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	battery_sysfs_init();
+#endif
+/*[Arima_5833][bozhi_lin] 20160616 end*/
 
 	if (chip->bat_if_base) {
 		chip->batt_present = qpnp_lbc_is_batt_present(chip);
@@ -3472,6 +4389,12 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 static int qpnp_lbc_remove(struct spmi_device *spmi)
 {
 	struct qpnp_lbc_chip *chip = dev_get_drvdata(&spmi->dev);
+
+/*[Arima_5833][bozhi_lin] show battery version 20160616 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5833)
+	battery_sysfs_deinit();
+#endif
+/*[Arima_5833][bozhi_lin] 20160616 end*/
 
 	if (chip->supported_feature_flag & VDD_TRIM_SUPPORTED) {
 		alarm_cancel(&chip->vddtrim_alarm);

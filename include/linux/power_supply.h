@@ -175,6 +175,20 @@ enum power_supply_property {
 	/* unit is in ohms due to ID being typically in kohm range */
 	POWER_SUPPLY_PROP_RESISTANCE_ID,
 	POWER_SUPPLY_PROP_RESISTANCE_NOW,
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	POWER_SUPPLY_PROP_GAUGE_OCV_CORRECT,
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
+/*[Arima_5830][bozhi_lin] enable sw jeita stop charging 20160726 begin*/
+/*[Arima_5833][bozhi_lin] enable sw jeita stop charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	POWER_SUPPLY_PROP_COLD_TEMP,
+	POWER_SUPPLY_PROP_HOT_TEMP,
+	POWER_SUPPLY_PROP_SW_JEITA_STOP_CHARGING,
+#endif
+/*[Arima_5833][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	/* Local extensions */
 	POWER_SUPPLY_PROP_USB_HC,
 	POWER_SUPPLY_PROP_USB_OTG,

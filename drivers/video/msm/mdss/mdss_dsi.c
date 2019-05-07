@@ -30,6 +30,10 @@
 #include "mdss_debug.h"
 #include "mdss_livedisplay.h"
 
+//[Arima_5830][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test begin
+#include <linux/proc_fs.h>
+//[Arima_5830][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test end
+
 #define XO_CLK_RATE	19200000
 
 static int mdss_dsi_pinctrl_set_state(struct mdss_dsi_ctrl_pdata *ctrl_pdata,
@@ -770,11 +774,26 @@ error:
 	return ret;
 }
 
+//[5833][RaymondLin]Fix white screen instant after factory reset -begin
+#if defined(CONFIG_BSP_HW_SKU_5833)
+static char led_pwm1[2] = {0x51, 0x0};	/* DTYPE_DCS_WRITE1 */
+static struct dsi_cmd_desc backlight_cmd = {
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm1)},
+	led_pwm1
+};
+#endif
+//[5833][RaymondLin]Fix white screen instant after factory reset -end
+
 static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 {
 	int ret = 0;
 	struct mipi_panel_info *mipi;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+	//[5833][RaymondLin]Fix white screen instant after factory reset -begin
+	#if defined(CONFIG_BSP_HW_SKU_5833)
+	struct dcs_cmd_req cmdreq;
+	#endif
+	//[5833][RaymondLin]Fix white screen instant after factory reset -end
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -796,7 +815,17 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 			ret = ctrl_pdata->low_power_config(pdata, true);
 		goto error;
 	}
-
+//[5833][RaymondLin]Fix white screen instant after factory reset -begin
+	#if defined(CONFIG_BSP_HW_SKU_5833)
+          memset(&cmdreq, 0, sizeof(cmdreq));
+          cmdreq.cmds = &backlight_cmd;
+          cmdreq.cmds_cnt = 1;
+          cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
+          cmdreq.rlen = 0;
+          cmdreq.cb = NULL;
+	mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq);
+	#endif
+//[5833][RaymondLin]Fix white screen instant after factory reset -end
 	if (pdata->panel_info.type == MIPI_VIDEO_PANEL &&
 			ctrl_pdata->off_cmds.link_state == DSI_LP_MODE) {
 		mdss_dsi_sw_reset(ctrl_pdata, false);
@@ -1484,6 +1513,82 @@ end:
 	return dsi_pan_node;
 }
 
+//[Arima_5830][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test begin
+extern int seq_printf(struct seq_file *m, const char *f, ...);
+extern int single_open(struct file *, int (*)(struct seq_file *, void *), void *);
+extern ssize_t seq_read(struct file *, char __user *, size_t, loff_t *);
+extern loff_t seq_lseek(struct file *, loff_t, int);
+extern int single_release(struct inode *, struct file *);
+//[Arima_5833][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test begin
+#if defined(CONFIG_BSP_HW_SKU_5830)
+static int proc_lcm_vendor_show(struct seq_file *m, void *v)
+{
+    int lcm_id=1;
+    //int LCM_ID_PIN=80;
+    //lcm_id = mt_get_gpio_in(GPIO_LCM_ID_PIN);
+
+    if(lcm_id == 1)
+    {
+    	seq_printf(m, "Sharp LCM");         
+    }
+    else
+    {
+    	seq_printf(m, "Sharp LCM");         
+    }
+
+    return 0;
+}
+#elif defined(CONFIG_BSP_HW_SKU_5833)
+static int proc_lcm_vendor_show(struct seq_file *m, void *v)
+{
+    int lcm_id=1;
+    //int LCM_ID_PIN=80;
+    //lcm_id = mt_get_gpio_in(GPIO_LCM_ID_PIN);
+
+    if(lcm_id == 1)
+    {
+    	seq_printf(m, "HLT ili9806e LCM");         
+    }
+    else
+    {
+    	seq_printf(m, "HLT ili9806e LCM");         
+    }
+
+    return 0;
+}
+#else
+static int proc_lcm_vendor_show(struct seq_file *m, void *v)
+{
+    int lcm_id=1;
+    //int LCM_ID_PIN=80;
+    //lcm_id = mt_get_gpio_in(GPIO_LCM_ID_PIN);
+
+    if(lcm_id == 1)
+    {
+    	seq_printf(m, "Qualcomm LCM");         
+    }
+    else
+    {
+    	seq_printf(m, "Qualcomm LCM");         
+    }
+
+    return 0;
+}	
+#endif
+//[Arima_5833][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test end
+static int proc_lcm_vendor_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, proc_lcm_vendor_show, NULL);
+}
+
+static const struct file_operations proc_lcm_vendor_fops = { 
+    .open  = proc_lcm_vendor_open, 
+    .read = seq_read,
+    .llseek = seq_lseek,
+    .release = single_release,
+};
+//[Arima_5830][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test end
+
 static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 {
 	int rc = 0, i = 0;
@@ -1617,7 +1722,20 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		pr_err("%s: dsi panel dev reg failed\n", __func__);
 		goto error_pan_node;
 	}
-
+//[5830][RaymondLin] Fix kernel panic issue begin	
+#if defined(CONFIG_BSP_HW_SKU_5830)
+	if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
+		pr_err("%s: gpio_request bklt_enable \n",__func__);
+		rc = gpio_request(ctrl_pdata->bklt_en_gpio,
+						"bklt_enable");
+		if (rc) {
+			pr_err("request bklt gpio failed, rc=%d\n",
+				       rc);
+			goto bklt_en_gpio_err;
+		}
+	}
+#endif	
+//[5830][RaymondLin] Fix kernel panic issue end
 	ctrl_pdata->cmd_clk_ln_recovery_en =
 		of_property_read_bool(pdev->dev.of_node,
 			"qcom,dsi-clk-ln-recovery");
@@ -1633,6 +1751,9 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		}
 		disable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
+//[Arima_5830][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test begin
+    proc_create("lcm_vendor", 0, NULL, &proc_lcm_vendor_fops);
+//[Arima_5830][LCM][RaymondLin] Add LCM_vendor file node for PCBA function test end	
 	pr_debug("%s: Dsi Ctrl->%d initialized\n", __func__, index);
 	return 0;
 
@@ -1646,6 +1767,14 @@ error_vreg:
 			&ctrl_pdata->power_data[i]);
 error_no_mem:
 	devm_kfree(&pdev->dev, ctrl_pdata);
+
+//[5830][RaymondLin] Fix kernel panic issue begin	
+#if defined(CONFIG_BSP_HW_SKU_5830)
+bklt_en_gpio_err:
+	if (gpio_is_valid(ctrl_pdata->bklt_en_gpio))
+		gpio_free(ctrl_pdata->bklt_en_gpio);
+#endif	
+//[5830][RaymondLin] Fix kernel panic issue end	
 
 	return rc;
 }

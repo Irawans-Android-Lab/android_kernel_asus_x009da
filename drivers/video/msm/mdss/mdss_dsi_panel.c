@@ -27,6 +27,16 @@
 
 #define DT_CMD_HDR 6
 
+//[Arima_5830][RaymondLin] Revert workaround backlight sometimes not work in low brightness -20160706 begin
+//[5833][RaymondLin]Fix lcm resume flash white  issue begin
+//[Arima_5830][RaymondLin] Workaround backlight sometimes not work in low brightness begin
+#if defined(CONFIG_BSP_HW_SKU_5833)
+int old_level=1;
+#endif
+//[Arima_5830][RaymondLin] Workaround backlight sometimes not work in low brightness end
+//[5833][RaymondLin]Fix lcm resume flash white  issue end
+//[Arima_5830][RaymondLin] Revert workaround backlight sometimes not work in low brightness -20160706 end
+
 /* NT35596 panel specific status variables */
 #define NT35596_BUF_3_STATUS 0x02
 #define NT35596_BUF_4_STATUS 0x40
@@ -188,6 +198,19 @@ static struct dsi_cmd_desc backlight_cmd = {
 	led_pwm1
 };
 
+//[Arima_5830][RaymondLin] Revert workaround backlight sometimes not work in low brightness -20160706 begin
+//[Arima_5830][RaymondLin] Workaround backlight sometimes not work in low brightness begin
+//#if defined(CONFIG_BSP_HW_SKU_5830)
+#if 0
+static char led_pwm2[2] = {0x51, 0x1};	/* DTYPE_DCS_WRITE1 */
+static struct dsi_cmd_desc backlight_cmd_2 = {
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm2)},
+	led_pwm2
+};
+#endif
+//[Arima_5830][RaymondLin] Workaround backlight sometimes not work in low brightness end
+//[Arima_5830][RaymondLin] Revert workaround backlight sometimes not work in low brightness -20160706 end
+
 #ifdef CONFIG_MACH_CP8675
 static int backlight_response_curve[] = {
 	0,  4,  4,  4,  4,  6,  6,  8,
@@ -237,6 +260,33 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	}
 
 	pr_debug("%s: level=%d\n", __func__, level);
+//[5833][RaymondLin]Fix lcm resume flash white  issue begin
+#if defined(CONFIG_BSP_HW_SKU_5833)
+ if (old_level == 0){
+	msleep(50);
+		}
+	  old_level = level ;
+#endif
+//[5833][RaymondLin]Fix lcm resume flash white  issue end
+//[Arima_5830][RaymondLin] Revert workaround backlight sometimes not work in low brightness -20160706 begin
+//[Arima_5830][RaymondLin] Workaround backlight sometimes not work in low brightness begin
+//#if defined(CONFIG_BSP_HW_SKU_5830)
+#if 0
+	if (old_level == 0){
+		pr_err("%s: after resume  level=1\n", __func__);
+                  	memset(&cmdreq, 0, sizeof(cmdreq));
+	cmdreq.cmds = &backlight_cmd_2;
+	cmdreq.cmds_cnt = 1;
+	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
+	cmdreq.rlen = 0;
+	cmdreq.cb = NULL;
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+	msleep(1);
+		}
+	  old_level = level ;
+#endif
+//[Arima_5830][RaymondLin] Workaround backlight sometimes not work in low brightness end
+//[Arima_5830][RaymondLin] Revert workaround backlight sometimes not work in low brightness -20160706 end
 
 #ifdef CONFIG_MACH_CP8675
 	led_pwm1[1] = (unsigned char)backlight_response_curve[level];
@@ -273,6 +323,24 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			rc);
 		goto rst_gpio_err;
 	}
+//[5830][RaymondLin] Fix kernel panic issue begin	
+//[5833][RaymondLin] Fix stack error issue begin
+//[5833][RaymondLin] Fix kernel panic issue begin	
+#if defined(CONFIG_BSP_HW_SKU_5830)
+#else
+	if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
+		rc = gpio_request(ctrl_pdata->bklt_en_gpio,
+						"bklt_enable");
+		if (rc) {
+			pr_err("request bklt gpio failed, rc=%d\n",
+				       rc);
+			goto bklt_en_gpio_err;
+		}
+	}
+#endif	
+//[5833][RaymondLin] Fix kernel panic issue end	
+//[5833][RaymondLin] Fix stack error issue end
+//[5830][RaymondLin] Fix kernel panic issue end
 	if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
 		rc = gpio_request(ctrl_pdata->bklt_en_gpio,
 						"bklt_enable");
@@ -295,8 +363,17 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 mode_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->bklt_en_gpio))
 		gpio_free(ctrl_pdata->bklt_en_gpio);
+//[5830][RaymondLin] Fix kernel panic issue begin		
+//[5833][RaymondLin] Fix stack error issue begin	
+//[5833][RaymondLin] Fix kernel panic issue begin	
+#if defined(CONFIG_BSP_HW_SKU_5830)
+#else
 bklt_en_gpio_err:
 	gpio_free(ctrl_pdata->rst_gpio);
+#endif
+//[5833][RaymondLin] Fix kernel panic issue end
+//[5833][RaymondLin] Fix stack error issue end
+//[5830][RaymondLin] Fix kernel panic issue end
 rst_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 		gpio_free(ctrl_pdata->disp_en_gpio);
@@ -349,8 +426,16 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 					usleep(pinfo->rst_seq[i] * 1000);
 			}
 
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control  begin
+#if defined(CONFIG_BSP_HW_SKU_5830)
+			//if (gpio_is_valid(ctrl_pdata->bklt_en_gpio))
+				//gpio_set_value((ctrl_pdata->bklt_en_gpio), 1);
+#else			
 			if (gpio_is_valid(ctrl_pdata->bklt_en_gpio))
 				gpio_set_value((ctrl_pdata->bklt_en_gpio), 1);
+#endif				
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control end
+			
 		}
 
 		if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
@@ -366,10 +451,19 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
 	} else {
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control begin
+#if defined(CONFIG_BSP_HW_SKU_5830)
+		//if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
+			//gpio_set_value((ctrl_pdata->bklt_en_gpio), 0);
+			//gpio_free(ctrl_pdata->bklt_en_gpio);
+		//}
+#else		
 		if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
 			gpio_set_value((ctrl_pdata->bklt_en_gpio), 0);
 			gpio_free(ctrl_pdata->bklt_en_gpio);
 		}
+#endif
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control end
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
 			gpio_free(ctrl_pdata->disp_en_gpio);
@@ -588,6 +682,11 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control begin
+	#if defined(CONFIG_BSP_HW_SKU_5830)	
+	int bl_suspend;
+	#endif
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control end	
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -605,7 +704,18 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 
 	if ((bl_level < pdata->panel_info.bl_min) && (bl_level != 0))
 		bl_level = pdata->panel_info.bl_min;
-
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control begin
+	#if defined(CONFIG_BSP_HW_SKU_5830)
+	      if(bl_level == 0){
+	               mdelay(20);
+		gpio_set_value((ctrl_pdata->bklt_en_gpio), 0);
+//[5830][RaymondLin] Fix kernel panic issue begin		
+		//gpio_free(ctrl_pdata->bklt_en_gpio);
+//[5830][RaymondLin] Fix kernel panic issue end
+		bl_suspend =1;
+	      	}
+	#endif	
+//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control end
 	switch (ctrl_pdata->bklt_ctrl) {
 	case BL_WLED:
 		led_trigger_event(bl_led_trigger, bl_level);
@@ -642,6 +752,15 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 			__func__);
 		break;
 	}
+	//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control begin
+	#if defined(CONFIG_BSP_HW_SKU_5830)
+	if(bl_level != 0 && bl_suspend==1){
+	        mdelay(20);
+ 		gpio_set_value((ctrl_pdata->bklt_en_gpio), 1);
+		bl_suspend=0;
+		}
+	#endif	
+	//[Arima_5830][RaymondLin] backlight IC KTD3116-1 control end
 }
 
 static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)

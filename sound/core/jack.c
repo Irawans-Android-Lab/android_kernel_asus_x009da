@@ -36,6 +36,11 @@ static int jack_switch_types[] = {
 	SW_HPHR_OVERCURRENT,
 	SW_UNSUPPORT_INSERT,
 	SW_MICROPHONE2_INSERT,
+/* --- [5833][Audio][LewisChen]  Send a new jack type "EarCanal" event . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+	SW_EAR_CANAL,
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
 };
 
 static int snd_jack_dev_free(struct snd_device *device)
@@ -241,6 +246,20 @@ void snd_jack_report(struct snd_jack *jack, int status)
 					    jack_switch_types[i],
 					    status & testbit);
 	}
+
+/* --- [5833][Audio][LewisChen]  Send a new jack type "EarCanal" event . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+	if(jack->type & SND_JACK_EAR_CANAL && status == 0x40B ){
+		//pr_debug("%s:  send event SND_JACK_EAR_CANAL \n", __func__);
+		input_report_switch(jack->input_dev, SW_EAR_CANAL,1);
+	}
+
+	if(jack->type & SND_JACK_EAR_CANAL && status == 0 ){
+		//pr_debug("%s: Lewis Cancel \n", __func__);
+		input_report_switch(jack->input_dev, SW_EAR_CANAL,0);
+	}
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
 
 	input_sync(jack->input_dev);
 }

@@ -1895,6 +1895,26 @@ static int msm_otg_notify_chg_type(struct msm_otg *motg)
 	return 0;
 }
 
+/*[Arima_5830][bozhi_lin] keep usb connect when switch usb function 20160726 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+static bool msm_otg_is_charger_present(void)
+{
+	union power_supply_propval ret = {0,};
+
+	if (psy == NULL) {
+		pr_err("No USB power supply registered!\n");
+	}
+
+	if (psy) {
+		psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &ret);
+		return ret.intval;
+	}
+
+	return false;
+}
+#endif
+/*[Arima_5830][bozhi_lin] 20160726 end*/
+
 static int msm_otg_notify_power_supply(struct msm_otg *motg, unsigned mA)
 {
 	if (!psy) {
@@ -1910,11 +1930,24 @@ static int msm_otg_notify_power_supply(struct msm_otg *motg, unsigned mA)
 			goto psy_error;
 	} else if (motg->cur_power >= 0 && (mA == 0 || mA == 2)) {
 		/* Disable charging */
+/*[Arima_5830][bozhi_lin] keep usb connect when switch usb function 20160726 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		pr_debug("[B]%s(%d): msm_otg_is_charger_present()=%d\n", __func__, __LINE__, msm_otg_is_charger_present());
+		if (!msm_otg_is_charger_present()) {
+			if (power_supply_set_online(psy, false))
+				goto psy_error;
+			/* Set max current limit in uA */
+			if (power_supply_set_current_limit(psy, 1000*mA))
+				goto psy_error;
+		}
+#else
 		if (power_supply_set_online(psy, false))
 			goto psy_error;
 		/* Set max current limit in uA */
 		if (power_supply_set_current_limit(psy, 1000*mA))
 			goto psy_error;
+#endif
+/*[Arima_5830][bozhi_lin] 20160726 end*/
 	} else {
 		if (power_supply_set_online(psy, true))
 			goto psy_error;
@@ -3436,6 +3469,11 @@ static void msm_otg_sm_work(struct work_struct *w)
 						OTG_STATE_B_PERIPHERAL;
 					break;
 				case USB_SDP_CHARGER:
+/*[Arima_5830][bozhi_lin] workaround for support d+ d- open charger 20160719 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+					msm_otg_notify_charger(motg, IDEV_CHG_MIN);
+#endif
+/*[Arima_5830][bozhi_lin] 20160719 end*/
 #ifdef CONFIG_MACH_YULONG
 					msm_otg_set_power(otg->phy, 500);
 #endif

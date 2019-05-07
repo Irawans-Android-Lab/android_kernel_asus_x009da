@@ -35,9 +35,18 @@
 #include "msm8x16_wcd_registers.h"
 #endif
 
+/* --- [5833][Audio][LewisChen]  Add a new jack type "EarCanal" . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+#define WCD_MBHC_JACK_MASK (SND_JACK_HEADSET | SND_JACK_OC_HPHL | \
+			   SND_JACK_OC_HPHR | SND_JACK_LINEOUT | \
+			   SND_JACK_UNSUPPORTED | SND_JACK_MECHANICAL | SND_JACK_EAR_CANAL)
+#else
 #define WCD_MBHC_JACK_MASK (SND_JACK_HEADSET | SND_JACK_OC_HPHL | \
 			   SND_JACK_OC_HPHR | SND_JACK_LINEOUT | \
 			   SND_JACK_UNSUPPORTED | SND_JACK_MECHANICAL)
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
+
 #define WCD_MBHC_JACK_BUTTON_MASK (SND_JACK_BTN_0 | SND_JACK_BTN_1 | \
 				  SND_JACK_BTN_2 | SND_JACK_BTN_3 | \
 				  SND_JACK_BTN_4 | SND_JACK_BTN_5 | \
@@ -683,9 +692,24 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 
 		pr_debug("%s: Reporting insertion %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
+/* --- [5833][Audio][LewisChen]  Add a new jack type "EarCanal" . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+		if (mbhc->codec->EarCanal == true){
+			pr_info("%s: Connect  EarCanal \n", __func__);
+			wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
+				    (mbhc->hph_status | SND_JACK_MECHANICAL |SND_JACK_EAR_CANAL),
+				    WCD_MBHC_JACK_MASK);
+		}
+		else
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				    (mbhc->hph_status | SND_JACK_MECHANICAL),
 				    WCD_MBHC_JACK_MASK);
+#else
+		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
+				    (mbhc->hph_status | SND_JACK_MECHANICAL),
+				    WCD_MBHC_JACK_MASK);
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
 	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);

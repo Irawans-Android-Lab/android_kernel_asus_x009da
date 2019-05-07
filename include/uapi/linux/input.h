@@ -797,9 +797,34 @@ struct input_keymap_entry {
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
+/*[Arima_5830][bozhi_lin] add touch gesture key code follow arima design 20160413 begin*/
+/*[Arima_5830][bozhi_lin] elan touch driver porting 20160126 begin*/
+#define KEY_GESTURE_WAKE			819	//0x333
+#define KEY_GESTURE_DOUBLE_CLICK	820	//0x334
+#define KEY_GESTURE_C	821	//0x335
+#define KEY_GESTURE_E	822	//0x336
+#define KEY_GESTURE_S	823	//0x337
+#define KEY_GESTURE_V	824	//0x338
+#define KEY_GESTURE_W	825	//0x339
+#define KEY_GESTURE_Z	826	//0x33a
+/*[Arima_5830][bozhi_lin] 20160126 end*/
+/*[Arima_5830][bozhi_lin] 20160413 end*/
+
 /* We avoid low common keys in module aliases so they don't get huge. */
 #define KEY_MIN_INTERESTING	KEY_MUTE
+/*[Arima_5833][bozhi_lin] re-enable touch gesture key code 20160512 begin*/
+/*[Arima_5833][bozhi_lin] fix can not enter recovery mode 20160511 begin*/
+/*[Arima_5830][bozhi_lin] touch add key code for gesture mode 20160310 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+#define KEY_MAX			0x3ff //0x2ff
+#elif (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+#define KEY_MAX			0x33f
+#else
 #define KEY_MAX			0x2ff
+#endif
+/*[Arima_5830][bozhi_lin] 20160310 end*/
+/*[Arima_5833][bozhi_lin] 20160511 end*/
+/*[Arima_5833][bozhi_lin] 20160512 end*/
 #define KEY_CNT			(KEY_MAX+1)
 
 /*
@@ -897,6 +922,11 @@ struct input_keymap_entry {
 #define SW_UNSUPPORT_INSERT	0x10  /* set = unsupported device inserted */
 #define SW_MICROPHONE2_INSERT   0x11  /* set = inserted */
 #define SW_MUTE_DEVICE		0x12  /* set = device disabled */
+/* --- [5833][Audio][LewisChen] define a new jack type "EarCanal" event . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+#define SW_EAR_CANAL		0x16  /* set = EAR_CANAL inserted */
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
 #define SW_MAX			0x20
 #define SW_CNT			(SW_MAX+1)
 

@@ -932,7 +932,15 @@ exit:
 	snd_soc_write(codec, MSM8X16_WCD_A_ANALOG_MBHC_DET_CTL_2, reg2);
 	msm8x16_wcd_compute_impedance(codec, impedance_l, impedance_r,
 				      zl, zr, high);
-
+/* --- [5833][Audio][LewisChen]  Add a new jack type "EarCanal" . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+/*   The RX Impedance of headset is 16 +/-3 range   */
+	if(*zl >= 13 && *zl <= 19){
+		codec->EarCanal = true;
+	}else
+		codec->EarCanal = false;
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
 	pr_debug("%s: RL %d ohm, RR %d ohm\n", __func__, *zl, *zr);
 skip_imped_detect:
 	pr_debug("%s: Impedance detection completed\n", __func__);
@@ -3908,6 +3916,9 @@ static int msm8x16_wcd_codec_enable_rx_bias(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+/* --- [5830][Audio][LewisChen]  Mask wcd_get_impedance_value . 20160406 Begin ---*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || (CONFIG_BSP_HW_SKU_5833)
+#else
 static uint32_t wcd_get_impedance_value(uint32_t imped)
 {
 	int i;
@@ -3922,6 +3933,8 @@ static uint32_t wcd_get_impedance_value(uint32_t imped)
 		 __func__, wcd_imped_val[i]);
 	return wcd_imped_val[i];
 }
+#endif
+/*--- [5830][Audio][LewisChen] 20160406 End  ---*/
 
 void wcd_imped_config(struct snd_soc_codec *codec,
 			uint32_t imped, bool set_gain)
@@ -3931,7 +3944,13 @@ void wcd_imped_config(struct snd_soc_codec *codec,
 	struct msm8x16_wcd_priv *msm8x16_wcd =
 				snd_soc_codec_get_drvdata(codec);
 
+/* --- [5830][Audio][LewisChen]  Headset resistance set 32ohm . 20160406 Begin ---*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || (CONFIG_BSP_HW_SKU_5833)
+	value = 32;
+#else
 	value = wcd_get_impedance_value(imped);
+#endif
+/*--- [5830][Audio][LewisChen] 20160406 End  ---*/
 
 	if (value < wcd_imped_val[0]) {
 		pr_debug("%s, detected impedance is less than 4 Ohm\n",

@@ -123,6 +123,18 @@
 
 #define QPNP_VM_BMS_DEV_NAME		"qcom,qpnp-vm-bms"
 
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160803 begin*/
+/*[Arima_5830][bozhi_lin] implement charging smooth algorithm to meet user feeling 20160602 begin*/
+/*[Arima_5830][bozhi_lin] add delay time to change from 100% to 99% to meet 100% rule 20160524 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+#define HIGH_CAPACITY	100
+#define CAPACITY_FULL_SMOOTH_TIME	120
+#define CAPACITY_NORMAL_SMOOTH_TIME	10
+#endif
+/*[Arima_5830][bozhi_lin] 20160524 end*/
+/*[Arima_5830][bozhi_lin] 20160602 end*/
+/*[Arima_5830][bozhi_lin] 20160803 end*/
+
 /* indicates the state of BMS */
 enum {
 	IDLE_STATE,
@@ -280,7 +292,39 @@ struct qpnp_bms_chip {
 	int				reported_soc;
 	int				reported_soc_change_sec;
 	int				reported_soc_delta;
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	struct power_supply		*batt_gauge_mm8033_psy;
+	bool				gauge_need_ocv_correct;
+	int					gauge_ocv_correct_retry;
+	int					gauge_ocv_time_sec;
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
+/*[Arima_5833][bozhi_lin] fix battery capacity will show 99% when battery is full 20160601 begin*/
+/*[Arima_5830][bozhi_lin] add delay time to change from 100% to 99% to meet 100% rule 20160525 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	bool			last_charger_present;
+#endif
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+/*[Arima_5833][bozhi_lin] 20160601 end*/
+/*[Arima_5830][bozhi_lin] fix can not do re-charging 20160615 begin*/
+#if 0
+	bool			is_recharge;
+#endif
+/*[Arima_5830][bozhi_lin] 20160615 end*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	bool			last_charging;
+	bool			need_do_gauge_ocv_correct;
+#endif
+/*[Arima_5830][bozhi_lin] 20160715 end*/
 };
+
+/*[Arima_5833][bozhi_lin] fix battery capacity will show 99% when battery is full 20160601 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+static void gauge_do_ocv_correction(struct qpnp_bms_chip *chip);
+#endif
+/*[Arima_5833][bozhi_lin] 20160601 end*/
 
 static struct qpnp_bms_chip *the_chip;
 
@@ -510,6 +554,28 @@ static bool is_battery_charging(struct qpnp_bms_chip *chip)
 	pr_debug("battery power supply is not registered\n");
 	return false;
 }
+
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160811 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+static bool is_ac_charging(struct qpnp_bms_chip *chip)
+{
+	union power_supply_propval ret = {0,};
+
+	if (chip->usb_psy == NULL)
+		chip->usb_psy = power_supply_get_by_name("usb");
+	if (chip->usb_psy) {
+		chip->usb_psy->get_property(chip->usb_psy,
+					POWER_SUPPLY_PROP_TYPE, &ret);
+	}
+
+	if(ret.intval == POWER_SUPPLY_TYPE_USB_DCP) {
+		return true;
+	}
+
+	return false;
+}
+#endif
+/*[Arima_5830][bozhi_lin] 20160811 end*/
 
 #define BAT_PRES_BIT		BIT(7)
 static bool is_battery_present(struct qpnp_bms_chip *chip)
@@ -1008,6 +1074,102 @@ static int lookup_soc_ocv(struct qpnp_bms_chip *chip, int ocv_uv, int batt_temp)
 			chip->prev_soc_uuc = -EINVAL;
 		}
 	}
+	
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160812 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160811 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160802 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160614 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160608 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	{
+		union power_supply_propval ret = {0,};
+		int soc_mm8033_final;
+		int vbat_uv;
+		int current_now = 0;
+		static int ocv_check_count = 0;
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm for add battery temp check 20161019 begin*/
+		int batt_temp = BMS_DEFAULT_TEMP;
+/*[Arima_5830][bozhi_lin] 20161019 end*/
+
+		if (chip->batt_gauge_mm8033_psy == NULL)
+			chip->batt_gauge_mm8033_psy = power_supply_get_by_name("gauge_mm8033");
+	
+		if (chip->batt_gauge_mm8033_psy) {
+			chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+					POWER_SUPPLY_PROP_CAPACITY, &ret);
+			soc_mm8033_final = ret.intval;
+		} else {
+			pr_debug("No Gauge MM8033 supply registered\n");
+			soc_mm8033_final = -1;
+		}
+
+		if ( soc_mm8033_final != -1) {
+			soc_final = soc_mm8033_final;
+		}
+
+		if (chip->batt_gauge_mm8033_psy) {
+			chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+					POWER_SUPPLY_PROP_CURRENT_NOW, &ret);
+			current_now = ret.intval;
+		} else {
+			current_now = -1;
+		}
+
+		if (chip->batt_gauge_mm8033_psy) {
+			chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_VOLTAGE_NOW, &ret);
+			vbat_uv = ret.intval;
+		} else {
+			vbat_uv = -1;
+		}
+
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm for add battery temp check 20161019 begin*/
+		if (chip->batt_gauge_mm8033_psy) {
+			chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_TEMP, &ret);
+			batt_temp = ret.intval;
+		}
+/*[Arima_5830][bozhi_lin] 20161019 end*/
+
+		pr_debug("[B]%s(%d): need_do_gauge_ocv_correct=%d, soc_mm8033_final=%d, current_now=%d, vbat_uv=%d\n", __func__, __LINE__, chip->need_do_gauge_ocv_correct, soc_mm8033_final, current_now, vbat_uv);
+		if (chip->need_do_gauge_ocv_correct) {
+			if ( (soc_mm8033_final != -1) && (current_now != -1) && (vbat_uv != -1)) {
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm for add battery temp check 20161019 begin*/
+				pr_debug("[B]%s(%d): vbat_uv=%d, soc_final=%d, batt_temp=%d\n", __func__, __LINE__, vbat_uv, soc_final, batt_temp);
+/*[Arima_5830][bozhi_lin] 20161019 end*/
+				pr_debug("[B]%s(%d): soc_final=%d, vbat_uv=%d, is_ac_charging=%d, current_now=%d\n", __func__, __LINE__, soc_final, vbat_uv, is_ac_charging(chip), current_now);
+				pr_debug("[B]%s(%d): calculated_soc=%d, soc_final=%d\n", __func__, __LINE__, chip->calculated_soc, soc_final);
+
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm for add battery temp check 20161019 begin*/
+				if((vbat_uv < 3300000) && (soc_final >2) && (batt_temp > 0)){
+/*[Arima_5830][bozhi_lin] 20161019 end*/
+					ocv_check_count ++;
+				} else if ((soc_final < 100) && (vbat_uv >= 4350000) && (is_ac_charging(chip)) && (current_now < 100000) && (current_now > 0)) {
+					ocv_check_count ++;
+				} else {
+					ocv_check_count = 0;
+				}
+
+				if ((soc_final == 100) && (chip->calculated_soc <= 97) && (chip->calculated_soc != -EINVAL)) {
+					gauge_do_ocv_correction(chip);
+					ocv_check_count = 0;
+				}
+			}
+		}
+		pr_debug("[B]%s(%d): need_do_gauge_ocv_correct=%d, ocv_check_count=%d\n", __func__, __LINE__, chip->need_do_gauge_ocv_correct, ocv_check_count);
+		if (ocv_check_count >= 3) {
+			gauge_do_ocv_correction(chip);
+			ocv_check_count = 0;
+		}
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160608 end*/
+/*[Arima_5830][bozhi_lin] 20160614 end*/
+/*[Arima_5830][bozhi_lin] 20160715 end*/
+/*[Arima_5830][bozhi_lin] 20160802 end*/
+/*[Arima_5830][bozhi_lin] 20160811 end*/
+/*[Arima_5830][bozhi_lin] 20160812 end*/
 
 	soc_final = bound_soc(soc_final);
 
@@ -1190,6 +1352,23 @@ static int get_battery_voltage(struct qpnp_bms_chip *chip, int *result_uv)
 							VBAT_SNS, rc);
 		return rc;
 	}
+	
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160608 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	{
+		union power_supply_propval ret = {0,};
+
+		if (chip->batt_gauge_mm8033_psy) {
+			chip->batt_gauge_mm8033_psy->get_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_VOLTAGE_NOW, &ret);
+			*result_uv = ret.intval;
+		} else {
+			pr_debug("No Gauge MM8033 supply registered return 0\n");
+		}
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160608 end*/
+	
 	pr_debug("mvolts phy=%lld meas=0x%llx\n", adc_result.physical,
 						adc_result.measurement);
 	*result_uv = (int)adc_result.physical;
@@ -1416,7 +1595,13 @@ static int report_eoc(struct qpnp_bms_chip *chip)
 				POWER_SUPPLY_PROP_STATUS, &ret);
 		if (rc) {
 			pr_err("Unable to get battery 'STATUS' rc=%d\n", rc);
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160812 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		} else if ((ret.intval != POWER_SUPPLY_STATUS_FULL) || (is_battery_charging(chip))) {
+#else
 		} else if (ret.intval != POWER_SUPPLY_STATUS_FULL) {
+#endif
+/*[Arima_5830][bozhi_lin] 20160812 end*/
 			pr_debug("Report EOC to charger\n");
 			ret.intval = POWER_SUPPLY_STATUS_FULL;
 			rc = chip->batt_psy->set_property(chip->batt_psy,
@@ -1426,6 +1611,13 @@ static int report_eoc(struct qpnp_bms_chip *chip)
 				return rc;
 			}
 			chip->eoc_reported = true;
+/*[Arima_5830][bozhi_lin] fix can not do re-charging 20160615 begin*/
+/*[Arima_5833][bozhi_lin] fix battery capacity will show 99% when battery is full 20160601 begin*/
+#if 0
+			chip->is_recharge = true;
+#endif
+/*[Arima_5833][bozhi_lin] 20160601 end*/
+/*[Arima_5830][bozhi_lin] 20160615 end*/
 		}
 	} else {
 		pr_err("battery psy not registered\n");
@@ -1440,8 +1632,18 @@ static void check_recharge_condition(struct qpnp_bms_chip *chip)
 	union power_supply_propval ret = {0,};
 	int status = get_battery_status(chip);
 
+/*[Arima_5830][bozhi_lin] fix can not do re-charging 20160616 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	pr_debug("[B]%s(%d): calculated_soc=%d, last_soc=%d, cfg_soc_resume_limit=%d\n", __func__, __LINE__,
+					chip->calculated_soc, chip->last_soc, chip->dt.cfg_soc_resume_limit);
+
+	if (chip->calculated_soc > chip->dt.cfg_soc_resume_limit)
+		return;
+#else
 	if (chip->last_soc > chip->dt.cfg_soc_resume_limit)
 		return;
+#endif
+/*[Arima_5830][bozhi_lin] 20160616 end*/
 
 	if (status == POWER_SUPPLY_STATUS_UNKNOWN) {
 		pr_debug("Unable to read battery status\n");
@@ -1480,9 +1682,19 @@ static void check_eoc_condition(struct qpnp_bms_chip *chip)
 	 * if last_soc is 100 and battery status is still charging
 	 * reset ocv_at_100 and force reporting of eoc to charger.
 	 */
+/*[Arima_5830][bozhi_lin] fix show battery full when battey level not reach 100 20160728 begin*/
+/*[Arima_5830][bozhi_lin] fix can not do re-charging 20160621 begin*/
+#if 0
+	if ((chip->calculated_soc == 100) &&
+			(status == POWER_SUPPLY_STATUS_CHARGING))
+		chip->ocv_at_100 = -EINVAL;
+#else
 	if ((chip->last_soc == 100) &&
 			(status == POWER_SUPPLY_STATUS_CHARGING))
 		chip->ocv_at_100 = -EINVAL;
+#endif
+/*[Arima_5830][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160728 end*/
 
 	/*
 	 * Store the OCV value at 100. If the new ocv is greater than
@@ -1490,7 +1702,17 @@ static void check_eoc_condition(struct qpnp_bms_chip *chip)
 	 * if the SOC drops, reset ocv_at_100.
 	 */
 	if (chip->ocv_at_100 == -EINVAL) {
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160803 begin*/
+/*[Arima_5830][bozhi_lin] fix show battery full when battey level not reach 100 20160728 begin*/
+/*[Arima_5830][bozhi_lin] fix can not do re-charging 20160621 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		if ((chip->last_soc == 100) && (chip->calculated_soc == 100)) {
+#else
 		if (chip->last_soc == 100) {
+#endif
+/*[Arima_5830][bozhi_lin] 20160621 end*/
+/*[Arima_5830][bozhi_lin] 20160728 end*/
+/*[Arima_5830][bozhi_lin] 20160803 end*/
 			if (chip->dt.cfg_report_charger_eoc) {
 				rc = report_eoc(chip);
 				if (!rc) {
@@ -1519,7 +1741,13 @@ static void check_eoc_condition(struct qpnp_bms_chip *chip)
 		if (chip->last_ocv_uv >= chip->ocv_at_100) {
 			pr_debug("new_ocv(%d) > ocv_at_100(%d) maintaining SOC to 100\n",
 					chip->last_ocv_uv, chip->ocv_at_100);
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160803 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+			chip->ocv_at_100 = -EINVAL;
+#else
 			chip->ocv_at_100 = chip->last_ocv_uv;
+#endif
+/*[Arima_5830][bozhi_lin] 20160803 end*/
 			chip->last_soc = 100;
 		} else if (chip->last_soc != 100) {
 			/*
@@ -1587,16 +1815,57 @@ static int prepare_reported_soc(struct qpnp_bms_chip *chip)
 #define SOC_CATCHUP_SEC_PER_PERCENT	60
 #define MAX_CATCHUP_SOC	(SOC_CATCHUP_SEC_MAX / SOC_CATCHUP_SEC_PER_PERCENT)
 #define SOC_CHANGE_PER_SEC		5
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160803 begin*/
+/*[Arima_5830][bozhi_lin] implement charging smooth algorithm to meet user feeling 20160602 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+#define SOC_REAL_DIFF	3
+#endif
+/*[Arima_5830][bozhi_lin] 20160602 end*/
+/*[Arima_5830][bozhi_lin] 20160803 end*/
 static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 {
 	int soc, soc_change, batt_temp, rc;
 	int time_since_last_change_sec = 0, charge_time_sec = 0;
 	unsigned long last_change_sec;
 	bool charging;
+/*[Arima_5830][bozhi_lin] add delay time to change from 100% to 99% to meet 100% rule 20160525 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	static bool first_boot = true;
+	bool charger_present = is_charger_present(chip);
+#endif
+/*[Arima_5830][bozhi_lin] 20160525 end*/
 
 	soc = chip->calculated_soc;
 
 	last_change_sec = chip->last_soc_change_sec;
+/*[Arima_5830][bozhi_lin] add delay time to change from 100% to 99% to meet 100% rule 20160524 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (first_boot) {
+		get_current_time(&last_change_sec);
+		chip->last_soc_change_sec = last_change_sec;
+		first_boot = false;
+		pr_err("[B]%s(%d): first_boot=%d\n", __func__, __LINE__, first_boot);
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160524 end*/
+
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+/*[Arima_5830][bozhi_lin] implement charging smooth algorithm to meet user feeling 20160602 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (!charger_present && chip->last_charger_present) {
+		get_current_time(&last_change_sec);
+		chip->last_soc_change_sec = last_change_sec;
+		pr_debug("[B]%s(%d): remove cable, re-set timer\n", __func__, __LINE__);
+		
+	#if 0
+		gauge_do_ocv_correction(chip);
+		pr_debug("[B]%s(%d): remove cable, do ocv correction\n", __func__, __LINE__);
+	#endif
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160602 end*/
+/*[Arima_5830][bozhi_lin] 20160715 end*/
+	
 	calculate_delta_time(&last_change_sec, &time_since_last_change_sec);
 
 	charging = is_battery_charging(chip);
@@ -1683,10 +1952,72 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 			soc_change = min(1, soc_change);
 		}
 
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160803 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160802 begin*/
+/*[Arima_5830][bozhi_lin] fix can not do re-charging 20160616 begin*/
+/*[Arima_5830][bozhi_lin] implement charging smooth algorithm to meet user feeling 20160602 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		pr_debug("[B]%s(%d): before soc=%d, last_soc=%d, soc_change=%d\n", __func__, __LINE__, soc, chip->last_soc, soc_change);
+		if (soc < chip->last_soc) {
+			if (charger_present) {
+				if ( (abs(chip->last_soc - soc) >= SOC_REAL_DIFF) || (soc == 0)) {
+					soc_change = 1;
+				} else {
+					soc_change = 0;
+				}
+			} else {
+				soc_change = 1;
+			}
+			soc = chip->last_soc - soc_change;
+		}
+		if (soc > chip->last_soc) {
+			if (charger_present) {
+				soc_change = 1;
+			} else {
+				if (abs(chip->last_soc - soc) >= SOC_REAL_DIFF) {
+					soc_change = 1;
+				} else {
+					soc_change = 0;
+				}
+			}
+			soc = chip->last_soc + soc_change;
+		}
+		pr_debug("[B]%s(%d): after  soc=%d, last_soc=%d, soc_change=%d\n", __func__, __LINE__, soc, chip->last_soc, soc_change);
+		if (time_since_last_change_sec < CAPACITY_NORMAL_SMOOTH_TIME) {
+			soc = chip->last_soc;
+		}		
+		pr_debug("[B]%s(%d): final  soc=%d, last_soc=%d, soc_change=%d\n", __func__, __LINE__, soc, chip->last_soc, soc_change);		
+#else
 		if (soc < chip->last_soc && soc != 0)
 			soc = chip->last_soc - soc_change;
 		if (soc > chip->last_soc && soc != 100)
 			soc = chip->last_soc + soc_change;
+#endif
+/*[Arima_5830][bozhi_lin] 20160602 end*/
+/*[Arima_5830][bozhi_lin] 20160616 end*/
+/*[Arima_5830][bozhi_lin] 20160802 end*/
+/*[Arima_5830][bozhi_lin] 20160803 end*/
+
+/*[Arima_5830][bozhi_lin] implement charging smooth algorithm to meet user feeling 20160602 begin*/
+/*[Arima_5830][bozhi_lin] add delay time to change from 100% to 99% to meet 100% rule 20160525 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+		pr_debug("[B]%s(%d): soc = %d, last_soc = %d, time since last change = %d\n", __func__, __LINE__,
+			soc, chip->last_soc, time_since_last_change_sec);
+
+		pr_debug("[B]%s(%d): charger_present = %d, chip->last_charger_present = %d\n", __func__, __LINE__,
+			charger_present, chip->last_charger_present);
+
+		if ((chip->last_soc) >= HIGH_CAPACITY) {
+			if (time_since_last_change_sec < CAPACITY_FULL_SMOOTH_TIME) {
+				soc = chip->last_soc;
+			}
+		}
+		
+		pr_debug("[B]%s(%d): soc = %d, last_soc = %d, time since last change = %d\n", __func__, __LINE__,
+			soc, chip->last_soc, time_since_last_change_sec);
+#endif
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+/*[Arima_5830][bozhi_lin] 20160602 end*/
 	}
 
 	if (chip->last_soc != soc && !chip->last_soc_unbound)
@@ -1705,10 +2036,50 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 		if ((chip->dt.cfg_soc_resume_limit > 0) && !charging)
 			check_recharge_condition(chip);
 	}
+	
+/*[Arima_5830][bozhi_lin] add delay time to change from 100% to 99% to meet 100% rule 20160525 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if (charger_present) {
+		chip->last_charger_present = true;
+	}
+	else {
+		chip->last_charger_present = false;
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+	
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160811 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+#if 0
+	if (charging ^ chip->last_charging) {
+		chip->need_do_gauge_ocv_correct = true;
+	}
+
+	if (charging) {
+		chip->last_charging = true;
+	}
+	else {
+		chip->last_charging = false;
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160715 end*/
+/*[Arima_5830][bozhi_lin] 20160811 end*/
 
 	pr_debug("last_soc=%d calculated_soc=%d soc=%d time_since_last_change=%d\n",
 			chip->last_soc, chip->calculated_soc,
 			soc, time_since_last_change_sec);
+
+/*[Arima_5830][bozhi_lin] implement charging smooth algorithm to meet user feeling 20160602 begin*/
+/*[Arima_5830][bozhi_lin] add delay time to change from 100% to 99% to meet 100% rule 20160524 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	if ((chip->last_soc != -EINVAL) && (soc != chip->last_soc)) {
+		if (chip->bms_psy_registered) {
+			power_supply_changed(&chip->bms_psy);
+		}
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160524 end*/
+/*[Arima_5830][bozhi_lin] 20160602 end*/
 
 	/*
 	 * Backup the actual ocv (last_ocv_uv) and not the
@@ -1723,6 +2094,32 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 
 	if (chip->reported_soc_in_use)
 		return prepare_reported_soc(chip);
+	
+/*[Arima_5830][bozhi_lin] fix can not do re-charging 20160615 begin*/
+/*[Arima_5830][bozhi_lin] implement charging smooth algorithm to meet user feeling 20160602 begin*/
+/*[Arima_5833][bozhi_lin] fix battery capacity will show 99% when battery is full 20160601 begin*/
+#if 0
+	if (charger_present && chip->is_recharge) {
+		pr_debug("[B]%s(%d): In re-charge state, last_soc=%d, Reported SOC=100\n", __func__, __LINE__, chip->last_soc);
+		
+		if (chip->last_soc < 95) {
+			chip->is_recharge = false;
+		}
+
+	#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+		if (abs(100 - chip->last_soc) > 3) {
+			gauge_do_ocv_correction(chip);
+		}
+	#endif
+
+		chip->last_soc =100;
+	} else {
+		chip->is_recharge = false;
+	}
+#endif
+/*[Arima_5833][bozhi_lin] 20160601 end*/
+/*[Arima_5830][bozhi_lin] 20160602 end*/
+/*[Arima_5830][bozhi_lin] 20160615 end*/
 
 	pr_debug("Reported SOC=%d\n", chip->last_soc);
 
@@ -2050,6 +2447,35 @@ static void battery_voltage_check(struct qpnp_bms_chip *chip)
 		cv_voltage_check(chip, vbat_uv);
 	}
 }
+	
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+#define GAUGE_OCV_CORRECT_RETRY	(10)
+#define GAUGE_OCV_UPPER_SOC	(95)
+#define GAUGE_OCV_LOWER_SOC	(5)
+#define GAUGE_FAST_TIME		(10*60)
+#define GAUGE_SMOOTH_TIME	(30*60)
+
+static void gauge_do_ocv_correction(struct qpnp_bms_chip *chip)
+{
+	union power_supply_propval ret = {0,};
+	
+	pr_debug("[B]%s(%d): \n", __func__, __LINE__);
+
+	if (chip->batt_gauge_mm8033_psy == NULL)
+		chip->batt_gauge_mm8033_psy = power_supply_get_by_name("gauge_mm8033");
+	
+	if (chip->batt_gauge_mm8033_psy) {
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160711 begin*/
+		chip->batt_gauge_mm8033_psy->set_property(chip->batt_gauge_mm8033_psy,
+				POWER_SUPPLY_PROP_GAUGE_OCV_CORRECT, &ret);
+/*[Arima_5830][bozhi_lin] 20160711 end*/
+	} else {
+		pr_err("No Gauge MM8033 supply registered \n");
+	}
+}
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
 
 #define UI_SOC_CATCHUP_TIME	(60)
 static void monitor_soc_work(struct work_struct *work)
@@ -2063,6 +2489,29 @@ static void monitor_soc_work(struct work_struct *work)
 
 	calculate_delta_time(&chip->tm_sec, &chip->delta_time_s);
 	pr_debug("elapsed_time=%d\n", chip->delta_time_s);
+	
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if 0
+	chip->gauge_ocv_time_sec = chip->gauge_ocv_time_sec + chip->delta_time_s;
+	pr_debug("gauge_ocv_time_sec=%d\n", chip->gauge_ocv_time_sec);
+
+	if ((chip->last_soc > GAUGE_OCV_UPPER_SOC) || (chip->last_soc < GAUGE_OCV_LOWER_SOC)) {
+		if (chip->gauge_ocv_time_sec > GAUGE_FAST_TIME) {
+			pr_debug("[B]%s(%d): GAUGE_FAST_TIME gauge_do_ocv_correction\n", __func__, __LINE__);
+			gauge_do_ocv_correction(chip);
+			chip->gauge_ocv_time_sec = 0;
+		}
+	} else {
+		if (chip->gauge_ocv_time_sec > GAUGE_SMOOTH_TIME) {
+			pr_debug("[B]%s(%d): GAUGE_SMOOTH_TIME gauge_do_ocv_correction\n", __func__, __LINE__);
+			gauge_do_ocv_correction(chip);
+			chip->gauge_ocv_time_sec = 0;
+		}
+	}
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
+/*[Arima_5830][bozhi_lin] 20160715 end*/
 
 	mutex_lock(&chip->last_soc_mutex);
 
@@ -2093,6 +2542,41 @@ static void monitor_soc_work(struct work_struct *work)
 								batt_temp);
 			/* clamp soc due to BMS hw/sw immaturities */
 			new_soc = clamp_soc_based_on_voltage(chip, new_soc);
+			
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if 0
+			pr_debug("gauge_need_ocv_correct=%d, chip->gauge_ocv_correct_retry=%d\n", chip->gauge_need_ocv_correct, chip->gauge_ocv_correct_retry);
+
+			if (chip->gauge_need_ocv_correct) {
+
+				if ((chip->gauge_ocv_correct_retry) < GAUGE_OCV_CORRECT_RETRY) {
+					gauge_do_ocv_correction(chip);
+					chip->gauge_ocv_correct_retry++;
+				} else {
+					chip->gauge_need_ocv_correct = false;
+					chip->gauge_ocv_correct_retry = 0;
+				}
+
+				new_soc = lookup_soc_ocv(chip, chip->last_ocv_uv,
+									batt_temp);
+				/* clamp soc due to BMS hw/sw immaturities */
+				new_soc = clamp_soc_based_on_voltage(chip, new_soc);
+
+				pr_debug("new_soc=%d\n", new_soc);
+
+				if (abs(chip->shutdown_soc - new_soc) > 3) {
+					new_soc = chip->shutdown_soc;
+				} else {
+					chip->gauge_need_ocv_correct = false;
+					chip->gauge_ocv_correct_retry = 0;
+				}
+			}
+			
+			pr_debug("gauge_need_ocv_correct=%d, chip->gauge_ocv_correct_retry=%d\n", chip->gauge_need_ocv_correct, chip->gauge_ocv_correct_retry);
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
+/*[Arima_5830][bozhi_lin] 20160715 end*/
 
 			if (chip->calculated_soc != new_soc) {
 				pr_debug("SOC changed! new_soc=%d prev_soc=%d\n",
@@ -2935,6 +3419,18 @@ static int calculate_initial_soc(struct qpnp_bms_chip *chip)
 	}
 	/* store the start-up OCV for voltage-based-soc */
 	chip->voltage_soc_uv = chip->last_ocv_uv;
+	
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if 0
+	if (!chip->shutdown_soc_invalid && 
+		(abs(chip->shutdown_soc - chip->calculated_soc) > 3)) {
+		chip->gauge_need_ocv_correct = true;
+	}
+	pr_info("gauge_need_ocv_correct=%d\n", chip->gauge_need_ocv_correct);
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
+/*[Arima_5830][bozhi_lin] 20160715 end*/
 
 	pr_info("warm_reset=%d est_ocv=%d  shutdown_soc_invalid=%d shutdown_ocv=%d shutdown_soc=%d last_soc=%d calculated_soc=%d last_ocv_uv=%d\n",
 		chip->warm_reset, est_ocv, chip->shutdown_soc_invalid,
@@ -3201,6 +3697,18 @@ static void bms_init_defaults(struct qpnp_bms_chip *chip)
 	chip->start_soc = 0;
 	chip->end_soc = 0;
 	chip->charge_increase = 0;
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160408 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	chip->gauge_need_ocv_correct = false;
+	chip->gauge_ocv_correct_retry = 0;
+	chip->gauge_ocv_time_sec = 0;
+#endif
+/*[Arima_5830][bozhi_lin] 20160408 end*/
+/*[Arima_5830][bozhi_lin] fine tune mm8033 gauge charging algorithm 20160715 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	chip->need_do_gauge_ocv_correct = true;
+#endif
+/*[Arima_5830][bozhi_lin] 20160715 end*/
 }
 
 #define SPMI_REQUEST_IRQ(chip, rc, irq_name)				\

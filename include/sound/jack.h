@@ -50,6 +50,11 @@ enum snd_jack_types {
 	SND_JACK_MICROPHONE2    = 0x0000200,
 	SND_JACK_ANC_HEADPHONE = SND_JACK_HEADPHONE | SND_JACK_MICROPHONE |
 				 SND_JACK_MICROPHONE2,
+/* --- [5833][Audio][LewisChen]  Send a new jack type "EarCanal" event . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+	SND_JACK_EAR_CANAL = 0x0000400,
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
 	/* Kept separate from switches to facilitate implementation */
 	SND_JACK_BTN_0		= 0x4000000,
 	SND_JACK_BTN_1		= 0x2000000,

@@ -1102,6 +1102,28 @@ struct qpnp_adc_amux_properties {
 #define QPNP_REV_ID_8909_1_0	13
 #define QPNP_REV_ID_8909_1_1	14
 
+/*[Arima_5830][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160523 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+enum board_version{
+	board_sr,
+	board_er1,
+	board_er2,
+	board_pr,
+	reserve1,
+	reserve2,
+};
+#elif (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+enum board_version{
+	board_er1,
+	board_er1_2,
+	board_er2,
+	board_pr
+};
+#endif
+/*[Arima_5833][bozhi_lin] 20160523 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+
 /* Public API */
 #if defined(CONFIG_SENSORS_QPNP_ADC_VOLTAGE)				\
 			|| defined(CONFIG_SENSORS_QPNP_ADC_VOLTAGE_MODULE)
@@ -1691,6 +1713,15 @@ int32_t qpnp_vadc_calib_gnd(struct qpnp_vadc_chip *vadc,
 				enum qpnp_adc_calib_type calib_type,
 				int *calib_data);
 
+/*[Arima_5830][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160523 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+int32_t qpnp_get_vadc_hw_version(struct qpnp_vadc_chip *vadc,
+				enum board_version *hw_version);
+#endif
+/*[Arima_5833][bozhi_lin] 20160523 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+
 #else
 static inline int32_t qpnp_vadc_read(struct qpnp_vadc_chip *dev,
 				uint32_t channel,
@@ -1870,6 +1901,16 @@ static int32_t qpnp_vadc_calib_gnd(struct qpnp_vadc_chip *vadc,
 					enum qpnp_adc_calib_type calib_type,
 					int *calib_data)
 { return -ENXIO; }
+
+/*[Arima_5830][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160523 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+static inline int32_t qpnp_get_vadc_hw_version(struct qpnp_vadc_chip *vadc,
+				enum board_version *hw_version)
+{ return -ENXIO; }
+#endif
+/*[Arima_5833][bozhi_lin] 20160523 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
 
 #endif
 

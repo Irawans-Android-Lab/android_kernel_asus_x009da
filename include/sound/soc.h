@@ -710,7 +710,11 @@ struct snd_soc_codec {
 	int id;
 	struct device *dev;
 	const struct snd_soc_codec_driver *driver;
-
+/* --- [5833][Audio][LewisChen]  Add a new jack type "EarCanal" . 20160622 Begin ---*/
+#if defined (CONFIG_BSP_HW_SKU_5833)
+       bool EarCanal;
+#endif
+/*--- [5833][Audio][LewisChen] 20160622 End  ---*/
 	struct mutex mutex;
 	struct snd_soc_card *card;
 	struct list_head list;

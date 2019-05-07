@@ -31,6 +31,13 @@
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/platform_device.h>
 #include <linux/thermal.h>
+/*[Arima_5830][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160523 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+#include <linux/of_gpio.h>
+#endif
+/*[Arima_5833][bozhi_lin] 20160523 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
 
 /* QPNP VADC register definition */
 #define QPNP_VADC_REVISION1				0x0
@@ -154,6 +161,13 @@ struct qpnp_vadc_chip {
 	struct qpnp_vadc_mode_state	*state_copy;
 	struct qpnp_vadc_thermal_data	*vadc_therm_chan;
 	struct sensor_device_attribute	sens_attr[0];
+/*[Arima_5830][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160523 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+	enum board_version hw_version;
+#endif
+/*[Arima_5833][bozhi_lin] 20160523 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
 };
 
 LIST_HEAD(qpnp_vadc_device_list);
@@ -1482,6 +1496,27 @@ static int32_t qpnp_vadc_manage_meas_int_requests(struct qpnp_vadc_chip *chip)
 	return 0;
 }
 
+/*[Arima_5830][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160523 begin*/
+#if defined(CONFIG_BSP_HW_SKU_5830) || defined(CONFIG_BSP_HW_SKU_5833)
+int32_t qpnp_get_vadc_hw_version(struct qpnp_vadc_chip *vadc,
+				enum board_version *hw_version)
+{
+	int rc = 0;
+
+	rc = qpnp_vadc_is_valid(vadc);
+	if (rc < 0)
+		return rc;
+
+	*hw_version = vadc->hw_version;
+
+	return 0;
+}
+EXPORT_SYMBOL(qpnp_get_vadc_hw_version);
+#endif
+/*[Arima_5833][bozhi_lin] 20160523 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
+
 struct qpnp_vadc_chip *qpnp_get_vadc(struct device *dev, const char *name)
 {
 	struct qpnp_vadc_chip *vadc;
@@ -2367,6 +2402,178 @@ static int qpnp_vadc_probe(struct spmi_device *spmi)
 	vadc->vadc_iadc_sync_lock = false;
 	dev_set_drvdata(&spmi->dev, vadc);
 	list_add(&vadc->list, &qpnp_vadc_device_list);
+
+/*[Arima_5830][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160525 begin*/
+/*[Arima_5833][bozhi_lin] dynamic apply battery thermal adc table based on PCBA_ID0 & PCBA_ID1 to check hw version 20160523 begin*/
+#if (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5830_SR && defined(CONFIG_BSP_HW_SKU_5830))
+	{
+		int err = 0;
+		int pcba_id0 = 0;
+		int pcba_id1 = 0;
+		int pcba_id2 = 0;
+		int pcba_id3 = 0;
+	
+		pcba_id0 = of_get_named_gpio(node, "qcom,pcba-id0", 0);
+		pcba_id1 = of_get_named_gpio(node, "qcom,pcba-id1", 0);
+		pcba_id2 = of_get_named_gpio(node, "qcom,pcba-id2", 0);
+		pcba_id3 = of_get_named_gpio(node, "qcom,pcba-id3", 0);
+		if (gpio_is_valid(pcba_id0)) {
+			err = gpio_request(pcba_id0, "pcba_id0");
+			if (err) {
+				dev_err(&spmi->dev, "unable to request gpio [%d]\n", pcba_id0);
+			}
+
+			err = gpio_direction_input(pcba_id0);
+			if (err) {
+				dev_err(&spmi->dev, "unable to set direction for gpio [%d]\n", pcba_id0);
+			}
+		} else {
+			dev_err(&spmi->dev, "gpio is not valid for gpio [%d]\n", pcba_id0);
+		}
+
+		if (gpio_is_valid(pcba_id1)) {
+			err = gpio_request(pcba_id1, "pcba_id1");
+			if (err) {
+				dev_err(&spmi->dev, "unable to request gpio [%d]\n", pcba_id1);
+			}
+
+			err = gpio_direction_input(pcba_id1);
+			if (err) {
+				dev_err(&spmi->dev, "unable to set direction for gpio [%d]\n", pcba_id1);
+			}
+		} else {
+			dev_err(&spmi->dev, "gpio is not valid for gpio [%d]\n", pcba_id1);
+		}
+
+		if (gpio_is_valid(pcba_id2)) {
+			err = gpio_request(pcba_id2, "pcba_id2");
+			if (err) {
+				dev_err(&spmi->dev, "unable to request gpio [%d]\n", pcba_id2);
+			}
+
+			err = gpio_direction_input(pcba_id2);
+			if (err) {
+				dev_err(&spmi->dev, "unable to set direction for gpio [%d]\n", pcba_id2);
+			}
+		} else {
+			dev_err(&spmi->dev, "gpio is not valid for gpio [%d]\n", pcba_id2);
+		}
+
+		if (gpio_is_valid(pcba_id3)) {
+			err = gpio_request(pcba_id3, "pcba_id3");
+			if (err) {
+				dev_err(&spmi->dev, "unable to request gpio [%d]\n", pcba_id3);
+			}
+
+			err = gpio_direction_input(pcba_id3);
+			if (err) {
+				dev_err(&spmi->dev, "unable to set direction for gpio [%d]\n", pcba_id3);
+			}
+		} else {
+			dev_err(&spmi->dev, "gpio is not valid for gpio [%d]\n", pcba_id3);
+		}
+
+		if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && !gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): SR\n", __func__, __LINE__);
+			vadc->hw_version = board_sr;
+		} else if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): ER1\n", __func__, __LINE__);
+			vadc->hw_version = board_er1;
+		} else if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && gpio_get_value(pcba_id2) && !gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): ER2\n", __func__, __LINE__);
+			vadc->hw_version = board_er2;
+		} else if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1) && gpio_get_value(pcba_id2) && gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): PR\n", __func__, __LINE__);
+			vadc->hw_version = board_pr;
+		} else if (!gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && !gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): RESERVE1\n", __func__, __LINE__);
+			vadc->hw_version = reserve1;
+		} else if (!gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1) && !gpio_get_value(pcba_id2) && gpio_get_value(pcba_id3)) {
+			pr_info("[B]%s(%d): RESERVE2\n", __func__, __LINE__);
+			vadc->hw_version = reserve2;
+		} else {
+			pr_info("[B]%s(%d): Not support, set to PR\n", __func__, __LINE__);
+			vadc->hw_version = board_pr;
+		}
+
+		pr_err("[B]%s(%d): vadc->hw_version=%d (0=SR, 1=ER1, 2=ER2, 3=PR, 4=RESERVE1, 5=RESERVE2)\n", __func__, __LINE__, vadc->hw_version);
+
+		if (gpio_is_valid(pcba_id0))
+			gpio_free(pcba_id0);
+
+		if (gpio_is_valid(pcba_id1))
+			gpio_free(pcba_id1);
+
+		if (gpio_is_valid(pcba_id2))
+			gpio_free(pcba_id2);
+
+		if (gpio_is_valid(pcba_id3))
+			gpio_free(pcba_id3);
+	}
+#elif (CONFIG_BSP_HW_V_CURRENT >= CONFIG_BSP_HW_V_5833_ER1 && defined(CONFIG_BSP_HW_SKU_5833))
+	{
+		int err = 0;
+		int pcba_id0 = 0;
+		int pcba_id1 = 0;
+	
+		pcba_id0 = of_get_named_gpio(node, "qcom,pcba-id0", 0);
+		pcba_id1 = of_get_named_gpio(node, "qcom,pcba-id1", 0);
+		if (gpio_is_valid(pcba_id0)) {
+			err = gpio_request(pcba_id0, "pcba_id0");
+			if (err) {
+				dev_err(&spmi->dev, "unable to request gpio [%d]\n", pcba_id0);
+			}
+
+			err = gpio_direction_input(pcba_id0);
+			if (err) {
+				dev_err(&spmi->dev, "unable to set direction for gpio [%d]\n", pcba_id0);
+			}
+		} else {
+			dev_err(&spmi->dev, "gpio is not valid for gpio [%d]\n", pcba_id0);
+		}
+
+		if (gpio_is_valid(pcba_id1)) {
+			err = gpio_request(pcba_id1, "pcba_id1");
+			if (err) {
+				dev_err(&spmi->dev, "unable to request gpio [%d]\n", pcba_id1);
+			}
+
+			err = gpio_direction_input(pcba_id1);
+			if (err) {
+				dev_err(&spmi->dev, "unable to set direction for gpio [%d]\n", pcba_id1);
+			}
+		} else {
+			dev_err(&spmi->dev, "gpio is not valid for gpio [%d]\n", pcba_id1);
+		}
+
+		if (!gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): ER1\n", __func__, __LINE__);
+			vadc->hw_version = board_er1;
+		} else if (!gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): ER1-2\n", __func__, __LINE__);
+			vadc->hw_version = board_er1_2;
+		} else if (gpio_get_value(pcba_id0) && !gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): ER2\n", __func__, __LINE__);
+			vadc->hw_version = board_er2;
+		} else if (gpio_get_value(pcba_id0) && gpio_get_value(pcba_id1)) {
+			pr_info("[B]%s(%d): PR\n", __func__, __LINE__);
+			vadc->hw_version = board_pr;
+		} else {
+			pr_info("[B]%s(%d): Not support, set to ER2\n", __func__, __LINE__);
+			vadc->hw_version = board_pr;
+		}
+
+		pr_err("[B]%s(%d): vadc->hw_version=%d (0=ER1, 1=ER1-2, 2=ER2, 3=PR)\n", __func__, __LINE__, vadc->hw_version);
+		
+		if (gpio_is_valid(pcba_id0))
+			gpio_free(pcba_id0);
+
+		if (gpio_is_valid(pcba_id1))
+			gpio_free(pcba_id1);
+	}
+#endif
+/*[Arima_5833][bozhi_lin] 20160523 end*/
+/*[Arima_5830][bozhi_lin] 20160525 end*/
 
 	return 0;
 
