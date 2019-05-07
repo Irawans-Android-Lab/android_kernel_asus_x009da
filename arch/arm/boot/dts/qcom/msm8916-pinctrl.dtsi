@@ -1415,6 +1415,23 @@
 			};
 		};
 
+//<--[5830][Sensors][JasonHsing] Porting P/L-sensor epl259x 20160114 BEGIN --		
+		epl259x_int_pin {
+			qcom,pins = <&gp 113>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "epl259x-irq";
+			epl259x_default: epl259x_default {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+			epl259x_sleep: epl259x_sleep {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+//-->[5830][Sensors][JasonHsing] Porting P/L-sensor epl259x 20160114 END --
+
 		apds99xx_int_pin {
 			qcom,pins = <&gp 113>;
 			qcom,pin-func = <0>;

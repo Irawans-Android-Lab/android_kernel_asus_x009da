@@ -79,7 +79,28 @@ dtb-$(CONFIG_ARCH_MSM8909) += msm8909-sim.dtb \
 	apq8009-mtp-wcd9326-refboard.dtb \
 	apq8009-512mb-mtp-wcd9326-refboard.dtb
 
-ifeq ($(CONFIG_MACH_CKT_MSM8939),y)
+#[5830][SI] Add project define 20160112 start
+ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5830_PR})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5830_pr.dtb
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5830_ER2})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5830_er2.dtb
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5830_ER1})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5830_er1.dtb
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5830_SR})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5830_sr.dtb
+#[5833][SI] Add project define 20160308 start
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5833_PR})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5833_pr.dtb
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5833_ER2})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5833_er2.dtb
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5833_ER1_2})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5833_er1_2.dtb
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_5833_ER1})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_5833_er1.dtb
+#[5833][SI] 20160308 end
+else ifeq ($(CONFIG_BSP_HW_V_CURRENT),${CONFIG_BSP_HW_V_ZE500KG_SR})
+	dtb-$(CONFIG_ARCH_MSM8916) += msm8916-mtp_ze500kg_sr.dtb
+else ifeq ($(CONFIG_MACH_CKT_MSM8939),y)
 dtb-$(CONFIG_ARCH_MSM8916) += msm8939-spirit.dtb
 else ifeq ($(CONFIG_MACH_HAIER_MSM8916),y)
 dtb-$(CONFIG_ARCH_MSM8916) += msm8916-g36c1h.dtb
