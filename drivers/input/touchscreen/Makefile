@@ -98,3 +98,6 @@ obj-$(CONFIG_MACH_LONGCHEER)	+= lct_if_ctp_upgrade.o
 
 obj-$(CONFIG_TOUCHSCREEN_MSG2XXX)	+= msg2xxx.o
 obj-$(CONFIG_MACH_YULONG)		+= touchscreen_yl.o
+# [Arima_5830][bozhi_lin] elan touch driver porting 20160126 begin
+obj-$(CONFIG_TOUCHSCREEN_ELAN_EKTF2150) += elan_ktf.o
+# [Arima_5830][bozhi_lin] 20160126 end
